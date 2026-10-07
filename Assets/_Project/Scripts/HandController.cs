@@ -18,6 +18,10 @@ public class HandController : MonoBehaviour
     [Header("Gameplay camera")]
     public Camera interactionCamera;
 
+    [Header("Camera hand resting points")]
+    public Transform leftHandRest;
+    public Transform rightHandRest;
+
     [Header("Movement settings")]
     public float moveSpeed = 1f;
     public float surfaceOffset = 0f;
@@ -27,6 +31,11 @@ public class HandController : MonoBehaviour
     [Header("Desktop testing")]
     public bool disableHandAnimators = true;
 
+    [Header("Compression visual")]
+    public float compressionVisualDistance = 0.02f;
+    public float compressionVisualDuration = 0.24f;
+    public Vector3 compressionDirection = Vector3.down;
+
     private enum HandSelection
     {
         None,
@@ -35,47 +44,48 @@ public class HandController : MonoBehaviour
     }
 
     private HandSelection selectedHand = HandSelection.None;
+
     private bool initialized;
+    private bool showControls;
+
+    private bool leftHandResting = true;
+    private bool rightHandResting = true;
 
     private Vector3 leftTarget;
     private Vector3 rightTarget;
-
     private Vector3 leftPalmPosition;
     private Vector3 rightPalmPosition;
 
-    private Vector3 leftInitialPosition;
-    private Vector3 rightInitialPosition;
-
-    private string feedback =
-        "Select a hand: press 1 for LEFT or 2 for RIGHT.";
-
-    [Header("Compression visual")]
-    public float compressionVisualDistance = 0.02f;
-    public float compressionVisualDuration = 0.24f;
-    public Vector3 compressionDirection = Vector3.down;
+    private Quaternion leftOriginalRotation;
+    private Quaternion rightOriginalRotation;
+    private Quaternion leftRestRotationOffset;
+    private Quaternion rightRestRotationOffset;
 
     private bool compressionVisualPlaying;
     private float compressionVisualStartTime;
 
-    public void PlayCompressionVisual()
-    {
-        if (!initialized || !isActiveAndEnabled)
-            return;
+    private string feedback =
+        "Select a hand: press 1 for LEFT or 2 for RIGHT.";
 
-        compressionVisualStartTime = Time.time;
-        compressionVisualPlaying = true;
-    }
+    private GUIStyle titleStyle;
+    private GUIStyle textStyle;
+    private GUIStyle statusStyle;
+    private GUIStyle buttonStyle;
+    private GUIStyle panelStyle;
+
     private void Start()
     {
         if (leftHand == null ||
             rightHand == null ||
             leftPalmContact == null ||
             rightPalmContact == null ||
-            interactionCamera == null)
+            interactionCamera == null ||
+            leftHandRest == null ||
+            rightHandRest == null)
         {
             StopWithError(
                 "Assign both hand bones, both palm contact points, " +
-                "and Main Camera.");
+                "Main Camera, and both camera resting points.");
             return;
         }
 
@@ -116,6 +126,26 @@ public class HandController : MonoBehaviour
             return;
         }
 
+        if (leftHandRest == rightHandRest ||
+            !leftHandRest.IsChildOf(interactionCamera.transform) ||
+            !rightHandRest.IsChildOf(interactionCamera.transform))
+        {
+            StopWithError(
+                "Create two separate resting points as children " +
+                "of the assigned Main Camera.");
+            return;
+        }
+
+        if (leftHandRest.IsChildOf(leftHand) ||
+            leftHandRest.IsChildOf(rightHand) ||
+            rightHandRest.IsChildOf(leftHand) ||
+            rightHandRest.IsChildOf(rightHand))
+        {
+            StopWithError(
+                "Resting points must be independent of the hand bones.");
+            return;
+        }
+
         if (disableHandAnimators)
         {
             foreach (Animator animator in
@@ -125,17 +155,31 @@ public class HandController : MonoBehaviour
             }
         }
 
-        leftPalmPosition = leftPalmContact.position;
-        rightPalmPosition = rightPalmContact.position;
+        // Keep the existing hand orientation for mannequin interactions.
+        leftOriginalRotation = leftHand.rotation;
+        rightOriginalRotation = rightHand.rotation;
 
-        // Remember where each palm was when the simulation started.
-        leftInitialPosition = leftPalmPosition;
-        rightInitialPosition = rightPalmPosition;
+        // Rest-point local rotations act as adjustments to the
+        // model's original orientation relative to the starting camera.
+        leftRestRotationOffset =
+            Quaternion.Inverse(interactionCamera.transform.rotation) *
+            leftOriginalRotation;
+
+        rightRestRotationOffset =
+            Quaternion.Inverse(interactionCamera.transform.rotation) *
+            rightOriginalRotation;
+
+        leftPalmPosition = leftHandRest.position;
+        rightPalmPosition = rightHandRest.position;
 
         leftTarget = leftPalmPosition;
         rightTarget = rightPalmPosition;
 
+        leftHandResting = true;
+        rightHandResting = true;
+
         selectedHand = HandSelection.None;
+        showControls = false;
         initialized = true;
     }
 
@@ -145,6 +189,15 @@ public class HandController : MonoBehaviour
         enabled = false;
     }
 
+    public void PlayCompressionVisual()
+    {
+        if (!initialized || !isActiveAndEnabled)
+            return;
+
+        compressionVisualStartTime = Time.time;
+        compressionVisualPlaying = true;
+    }
+
     private void Update()
     {
         if (!initialized)
@@ -152,7 +205,7 @@ public class HandController : MonoBehaviour
 
         bool clicked = false;
         bool shiftHeld = false;
-        bool returnPressed = false;
+        bool resetPressed = false;
 
         Vector2 pointerPosition = Vector2.zero;
 
@@ -171,7 +224,7 @@ public class HandController : MonoBehaviour
             if (keyboard.escapeKey.wasPressedThisFrame)
                 SelectHand(HandSelection.None);
 
-            returnPressed = keyboard.rKey.wasPressedThisFrame;
+            resetPressed = keyboard.rKey.wasPressedThisFrame;
 
             shiftHeld =
                 keyboard.leftShiftKey.isPressed ||
@@ -194,7 +247,7 @@ public class HandController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Escape))
             SelectHand(HandSelection.None);
 
-        returnPressed = Input.GetKeyDown(KeyCode.R);
+        resetPressed = Input.GetKeyDown(KeyCode.R);
 
         shiftHeld =
             Input.GetKey(KeyCode.LeftShift) ||
@@ -204,39 +257,40 @@ public class HandController : MonoBehaviour
         pointerPosition = Input.mousePosition;
 #endif
 
-        if (returnPressed)
+        if (resetPressed)
         {
-            ReturnSelectedHand();
+            ResetBothHands();
             return;
         }
 
         if (!clicked)
             return;
 
-        // The emergency call button uses a normal left-click.
+        // Let the emergency call button handle its own clicks.
         if (CPRInteraction.PointerOverCallButton(pointerPosition))
             return;
 
         Vector2 guiPosition = new Vector2(
             pointerPosition.x,
-            Screen.height - pointerPosition.y);
+            Screen.height - pointerPosition.y
+        );
 
-        // Avoid moving hands when clicking the instruction panels.
+        // Prevent moving hands when clicking visible interface areas.
         if (InstructionPanelRect.Contains(guiPosition) ||
-            HandPanelRect.Contains(guiPosition))
-            return;
-
-        if (!shiftHeld)
+            ControlsButtonRect.Contains(guiPosition) ||
+            HandStatusRect.Contains(guiPosition) ||
+            (showControls && ControlsPanelRect.Contains(guiPosition)))
         {
-            feedback =
-                "Hold SHIFT and left-click to move a hand.";
             return;
         }
 
+        // Normal clicks remain available for UI buttons.
+        if (!shiftHeld)
+            return;
+
         if (selectedHand == HandSelection.None)
         {
-            feedback =
-                "No hand selected. Press 1 for LEFT or 2 for RIGHT.";
+            feedback = "Select a hand first: 1 = LEFT, 2 = RIGHT.";
             return;
         }
 
@@ -249,40 +303,37 @@ public class HandController : MonoBehaviour
 
         if (selection == HandSelection.None)
         {
-            // Stop movement without returning or withdrawing hands.
-            leftPalmPosition = leftPalmContact.position;
-            rightPalmPosition = rightPalmContact.position;
+            // Stop placed hands without returning them.
+            // Resting hands continue following the camera.
+            if (!leftHandResting)
+                leftTarget = leftPalmPosition;
 
-            leftTarget = leftPalmPosition;
-            rightTarget = rightPalmPosition;
+            if (!rightHandResting)
+                rightTarget = rightPalmPosition;
 
-            feedback =
-                "No hand selected. Press 1 for LEFT or 2 for RIGHT.";
+            feedback = "No hand selected. Press 1 or 2 to select.";
             return;
         }
 
         feedback =
             SelectionName + " selected. SHIFT + click to move; " +
-            "R to return.";
+            "R to return both hands.";
     }
 
-    private void ReturnSelectedHand()
+    public void ResetBothHands()
     {
-        if (selectedHand == HandSelection.None)
-        {
-            feedback =
-                "Select a hand first: 1 = LEFT or 2 = RIGHT.";
+        if (!initialized)
             return;
-        }
 
-        if (selectedHand == HandSelection.Left)
-            leftTarget = leftInitialPosition;
-        else
-            rightTarget = rightInitialPosition;
+        leftHandResting = true;
+        rightHandResting = true;
 
-        feedback =
-            "Returning " + SelectionName +
-            " hand to its initial position.";
+        leftTarget = leftHandRest.position;
+        rightTarget = rightHandRest.position;
+
+        compressionVisualPlaying = false;
+
+        feedback = "Returning both hands to the camera.";
     }
 
     private void SetDestination(Vector2 pointerPosition)
@@ -293,7 +344,8 @@ public class HandController : MonoBehaviour
             ray,
             maxClickDistance,
             clickableLayers,
-            QueryTriggerInteraction.Collide);
+            QueryTriggerInteraction.Collide
+        );
 
         float nearestDistance = float.PositiveInfinity;
         RaycastHit nearestHit = default(RaycastHit);
@@ -315,8 +367,7 @@ public class HandController : MonoBehaviour
 
         if (!found)
         {
-            feedback =
-                "No surface found. Shift-click an object with a collider.";
+            feedback = "No surface found. Click an object with a collider.";
             return;
         }
 
@@ -324,13 +375,19 @@ public class HandController : MonoBehaviour
             nearestHit.point + nearestHit.normal * surfaceOffset;
 
         if (selectedHand == HandSelection.Left)
+        {
+            leftHandResting = false;
             leftTarget = target;
+        }
         else
+        {
+            rightHandResting = false;
             rightTarget = target;
+        }
 
         feedback =
-            "Moving " + SelectionName +
-            " hand to " + nearestHit.collider.name + ".";
+            "Moving " + SelectionName + " hand to " +
+            nearestHit.collider.name + ".";
     }
 
     private void LateUpdate()
@@ -338,20 +395,45 @@ public class HandController : MonoBehaviour
         if (!initialized)
             return;
 
+        if (leftHandResting)
+        {
+            leftTarget = leftHandRest.position;
+            leftHand.rotation =
+                leftHandRest.rotation * leftRestRotationOffset;
+        }
+        else
+        {
+            leftHand.rotation = leftOriginalRotation;
+        }
+
+        if (rightHandResting)
+        {
+            rightTarget = rightHandRest.position;
+            rightHand.rotation =
+                rightHandRest.rotation * rightRestRotationOffset;
+        }
+        else
+        {
+            rightHand.rotation = rightOriginalRotation;
+        }
+
         float step = Mathf.Max(0f, moveSpeed) * Time.deltaTime;
 
         leftPalmPosition = Vector3.MoveTowards(
-            leftPalmPosition, leftTarget, step);
+            leftPalmPosition, leftTarget, step
+        );
 
         rightPalmPosition = Vector3.MoveTowards(
-            rightPalmPosition, rightTarget, step);
+            rightPalmPosition, rightTarget, step
+        );
 
         Vector3 visualOffset = Vector3.zero;
 
         if (compressionVisualPlaying)
         {
             float duration = Mathf.Max(
-                0.05f, compressionVisualDuration);
+                0.05f, compressionVisualDuration
+            );
 
             float progress =
                 (Time.time - compressionVisualStartTime) / duration;
@@ -362,9 +444,9 @@ public class HandController : MonoBehaviour
             }
             else
             {
-                // Smoothly move down, then return to the resting position.
                 float movement = Mathf.Sin(
-                    Mathf.Clamp01(progress) * Mathf.PI);
+                    Mathf.Clamp01(progress) * Mathf.PI
+                );
 
                 visualOffset =
                     compressionDirection.normalized *
@@ -373,11 +455,20 @@ public class HandController : MonoBehaviour
             }
         }
 
+        Vector3 leftOffset = leftHandResting
+            ? Vector3.zero
+            : visualOffset;
+
+        Vector3 rightOffset = rightHandResting
+            ? Vector3.zero
+            : visualOffset;
+
+        // Position the palms after rotating the hand bones.
         leftHand.position +=
-            leftPalmPosition + visualOffset - leftPalmContact.position;
+            leftPalmPosition + leftOffset - leftPalmContact.position;
 
         rightHand.position +=
-            rightPalmPosition + visualOffset - rightPalmContact.position;
+            rightPalmPosition + rightOffset - rightPalmContact.position;
     }
 
     private string SelectionName
@@ -399,21 +490,75 @@ public class HandController : MonoBehaviour
         get
         {
             return new Rect(
-                16, 16,
-                Mathf.Min(560f, Screen.width - 32f), 86);
+                16f, 16f,
+                Mathf.Min(560f, Screen.width - 32f),
+                86f
+            );
         }
     }
 
-    private Rect HandPanelRect
+    private Rect ControlsButtonRect
     {
         get
         {
-            float width = Mathf.Min(330f, Screen.width - 32f);
+            return new Rect(
+                Screen.width - 126f,
+                Screen.height - 46f,
+                110f, 30f
+            );
+        }
+    }
+
+    private Rect HandStatusRect
+    {
+        get
+        {
+            return new Rect(
+                Screen.width - 272f,
+                Screen.height - 46f,
+                138f, 30f
+            );
+        }
+    }
+
+    private Rect ControlsPanelRect
+    {
+        get
+        {
+            float width = Mathf.Min(340f, Screen.width - 32f);
 
             return new Rect(
-                Screen.width - width - 16,
-                174, width, 162);
+                Screen.width - width - 16f,
+                Screen.height - 330f,
+                width, 274f
+            );
         }
+    }
+
+    private void CreateStyles()
+    {
+        if (titleStyle != null)
+            return;
+
+        titleStyle = new GUIStyle(GUI.skin.label);
+        titleStyle.fontSize = 16;
+        titleStyle.fontStyle = FontStyle.Bold;
+        titleStyle.normal.textColor = Color.white;
+
+        textStyle = new GUIStyle(GUI.skin.label);
+        textStyle.fontSize = 13;
+        textStyle.wordWrap = true;
+        textStyle.normal.textColor = Color.white;
+
+        statusStyle = new GUIStyle(GUI.skin.box);
+        statusStyle.fontSize = 12;
+        statusStyle.alignment = TextAnchor.MiddleCenter;
+
+        buttonStyle = new GUIStyle(GUI.skin.button);
+        buttonStyle.fontSize = 13;
+
+        panelStyle = new GUIStyle(GUI.skin.box);
+        panelStyle.normal.background = Texture2D.whiteTexture;
     }
 
     private void OnGUI()
@@ -421,53 +566,87 @@ public class HandController : MonoBehaviour
         if (!initialized)
             return;
 
-        Rect panel = HandPanelRect;
-        GUI.Box(panel, GUIContent.none);
+        CreateStyles();
 
-        GUIStyle titleStyle = new GUIStyle(GUI.skin.label);
-        titleStyle.fontStyle = FontStyle.Bold;
-        titleStyle.fontSize = 15;
-
-        titleStyle.normal.textColor =
+        statusStyle.normal.textColor =
             selectedHand == HandSelection.Left ? Color.cyan :
             selectedHand == HandSelection.Right ? Color.yellow :
             Color.white;
 
-        GUIStyle textStyle = new GUIStyle(GUI.skin.label);
-        textStyle.fontSize = 13;
-        textStyle.wordWrap = true;
-        textStyle.normal.textColor = Color.white;
+        GUI.Box(
+            HandStatusRect,
+            "Hand: " + SelectionName,
+            statusStyle
+        );
 
-        GUI.Label(
-            new Rect(panel.x + 10, panel.y + 6, panel.width - 20, 22),
-            "SELECTED HAND: " + SelectionName,
-            titleStyle);
-
-        GUI.Label(
-            new Rect(panel.x + 10, panel.y + 30, panel.width - 20, 62),
-            "1 = LEFT | 2 = RIGHT | Esc = deselect\n" +
-            "SHIFT + left-click = move | R = return\n" +
-            "Left-click alone = UI buttons",
-            textStyle);
-
-        GUI.Label(
-            new Rect(panel.x + 10, panel.y + 96, panel.width - 20, 38),
-            feedback,
-            textStyle);
-
-        if (selectedHand != HandSelection.None)
+        if (GUI.Button(
+            ControlsButtonRect,
+            showControls ? "Hide controls" : "Controls",
+            buttonStyle))
         {
-            float remaining =
-                selectedHand == HandSelection.Left
-                ? Vector3.Distance(leftPalmContact.position, leftTarget)
-                : Vector3.Distance(rightPalmContact.position, rightTarget);
-
-            GUI.Label(
-                new Rect(
-                    panel.x + 10, panel.y + 136,
-                    panel.width - 20, 22),
-                "Palm distance: " + remaining.ToString("F3") + " units",
-                textStyle);
+            showControls = !showControls;
         }
+
+        if (!showControls)
+            return;
+
+        Rect panel = ControlsPanelRect;
+
+        Color previousBackground = GUI.backgroundColor;
+        GUI.backgroundColor = new Color(0.08f, 0.10f, 0.13f, 0.94f);
+
+        GUI.Box(panel, GUIContent.none, panelStyle);
+
+        GUI.backgroundColor = previousBackground;
+
+        GUI.Label(
+            new Rect(
+                panel.x + 14f, panel.y + 10f,
+                panel.width - 60f, 24f
+            ),
+            "CONTROLS",
+            titleStyle
+        );
+
+        if (GUI.Button(
+            new Rect(panel.xMax - 38f, panel.y + 8f, 26f, 26f),
+            "X",
+            buttonStyle))
+        {
+            showControls = false;
+        }
+
+        GUI.Label(
+            new Rect(
+                panel.x + 14f, panel.y + 44f,
+                panel.width - 28f, 110f
+            ),
+            "HANDS\n" +
+            "1 / 2: select left / right hand\n" +
+            "Shift + left-click: move selected hand\n" +
+            "R: return both hands to the camera\n" +
+            "Esc: deselect hand",
+            textStyle
+        );
+
+        GUI.Label(
+            new Rect(
+                panel.x + 14f, panel.y + 158f,
+                panel.width - 28f, 70f
+            ),
+            "MOVEMENT\n" +
+            "WASD: walk | Shift: faster | C: crouch / stand\n" +
+            "Hold Left Alt + touchpad: look around",
+            textStyle
+        );
+
+        GUI.Label(
+            new Rect(
+                panel.x + 14f, panel.y + 232f,
+                panel.width - 28f, 36f
+            ),
+            feedback,
+            textStyle
+        );
     }
 }
