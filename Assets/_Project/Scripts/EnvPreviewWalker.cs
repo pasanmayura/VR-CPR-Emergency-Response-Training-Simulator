@@ -27,7 +27,7 @@ public class EnvPreviewWalker : MonoBehaviour
         bodyGo.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
         body = bodyGo.AddComponent<CharacterController>();
-        body.height = 1.8f;
+        body.height = 1.6f;
         body.radius = 0.25f;
         body.center = new Vector3(0f, 0.9f, 0f);
         body.stepOffset = 0.3f;
