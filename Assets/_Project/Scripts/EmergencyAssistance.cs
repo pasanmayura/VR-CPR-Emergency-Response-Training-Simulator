@@ -3,17 +3,26 @@ using UnityEngine.Events;
 
 public class EmergencyAssistance : MonoBehaviour
 {
+    [Header("Phone contact")]
     public Collider phoneCollider;
     public Transform leftPalmContact;
     public Transform rightPalmContact;
 
     public float contactTolerance = 0.015f;
 
+    [Header("Feedback")]
+    [Min(0f)]
+    public float resultDisplayDuration = 3f;
+
+    [Header("Completion event")]
     public UnityEvent onAssistanceRequested = new UnityEvent();
 
     private bool available;
     private bool callScreenOpen;
     private bool completed;
+    private bool feedbackFinished;
+
+    private float finishTime;
 
     private void Awake()
     {
@@ -28,7 +37,8 @@ public class EmergencyAssistance : MonoBehaviour
         {
             Debug.LogError(
                 "EmergencyAssistance: assign the phone collider " +
-                "and both palm contact points.", this);
+                "and both palm contact points.",
+                this);
 
             enabled = false;
         }
@@ -42,14 +52,34 @@ public class EmergencyAssistance : MonoBehaviour
 
     private void Update()
     {
-        if (!available || completed || callScreenOpen)
+        if (!available)
+            return;
+
+        // Keep the call confirmation visible before the next step.
+        if (completed)
+        {
+            if (!feedbackFinished && Time.time >= finishTime)
+            {
+                feedbackFinished = true;
+                available = false;
+                onAssistanceRequested.Invoke();
+            }
+
+            return;
+        }
+
+        if (callScreenOpen)
             return;
 
         bool touching =
             CPRInteraction.Touching(
-                leftPalmContact, phoneCollider, contactTolerance) ||
+                leftPalmContact,
+                phoneCollider,
+                contactTolerance) ||
             CPRInteraction.Touching(
-                rightPalmContact, phoneCollider, contactTolerance);
+                rightPalmContact,
+                phoneCollider,
+                contactTolerance);
 
         if (touching)
         {
@@ -60,24 +90,41 @@ public class EmergencyAssistance : MonoBehaviour
 
     private void OnGUI()
     {
-        if (!available || completed)
+        if (!enabled || !available || feedbackFinished)
             return;
+
+        if (completed)
+        {
+            CPRInteraction.ShowInstruction(
+                "2. ASSISTANCE REQUESTED",
+                "Dialled 1990. Assistance is on the way.\n" +
+                "This is a simulated call.");
+
+            return;
+        }
 
         CPRInteraction.ShowInstruction(
             "2. REQUEST ASSISTANCE",
             callScreenOpen
-                ? "Phone reached. Use the green button to make " +
-                  "the simulated call and request an AED."
-                : "Select a hand with 1 or 2, then click the phone " +
-                  "to move that hand onto it.");
+                ? "Phone reached. Click the green call button " +
+                  "to dial 1990 and request emergency assistance."
+                : "Call for emergency assistance. Press 1 or 2 " +
+                  "to select a hand, then hold Shift and click " +
+                  "the phone to tap it.");
 
         if (callScreenOpen && CPRInteraction.ShowCallButton())
         {
             completed = true;
+            callScreenOpen = false;
             CPRInteraction.CallButtonVisible = false;
 
-            Debug.Log("Assistance and AED requested.", this);
-            onAssistanceRequested.Invoke();
+            finishTime =
+                Time.time + Mathf.Max(0f, resultDisplayDuration);
+
+            Debug.Log(
+                "Simulated call: dialled 1990. " +
+                "Assistance is on the way.",
+                this);
         }
     }
 
