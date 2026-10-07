@@ -7,30 +7,52 @@ using UnityEngine.InputSystem;
 
 public class ResponsivenessCheck : MonoBehaviour
 {
+    [Header("Player proximity")]
+    public Transform playerCamera;
+
+    [Min(0.1f)]
+    public float activationDistance = 2f;
+
+    [Header("Shoulder contact")]
     public Collider shoulderZone;
     public Transform leftPalmContact;
     public Transform rightPalmContact;
 
     public float contactTolerance = 0.015f;
 
+    [Header("Feedback")]
+    [Min(0f)]
+    public float resultDisplayDuration = 2f;
+
+    [Header("Completion event")]
     public UnityEvent onResponsivenessCompleted = new UnityEvent();
 
+    private bool assessmentStarted;
     private bool talked;
     private bool completed;
     private bool readyForTap;
-    private Transform tappingPalm;
+    private bool feedbackFinished;
 
-    private string message = "Press T to ask: Are you okay?";
+    private Transform tappingPalm;
+    private float finishTime;
+
+    private string message =
+        "A person needs emergency assistance. Approach them.";
 
     private void Start()
     {
-        if (shoulderZone == null ||
+        if (playerCamera == null && Camera.main != null)
+            playerCamera = Camera.main.transform;
+
+        if (playerCamera == null ||
+            shoulderZone == null ||
             leftPalmContact == null ||
             rightPalmContact == null)
         {
             Debug.LogError(
-                "ResponsivenessCheck: assign the shoulder zone " +
-                "and both palm contact points.", this);
+                "ResponsivenessCheck: assign the player camera, " +
+                "shoulder zone, and both palm contact points.",
+                this);
 
             enabled = false;
         }
@@ -38,8 +60,36 @@ public class ResponsivenessCheck : MonoBehaviour
 
     private void Update()
     {
+        // Display the shoulder-tap result before starting the next step.
         if (completed)
+        {
+            if (!feedbackFinished && Time.time >= finishTime)
+            {
+                feedbackFinished = true;
+                onResponsivenessCompleted.Invoke();
+            }
+
             return;
+        }
+
+        // Unlock the assessment when the player approaches the casualty.
+        if (!assessmentStarted)
+        {
+            if (!ShoulderZoneActive())
+                return;
+
+            Vector3 nearestPoint =
+                shoulderZone.ClosestPoint(playerCamera.position);
+
+            float distance =
+                Vector3.Distance(playerCamera.position, nearestPoint);
+
+            if (distance > Mathf.Max(0.1f, activationDistance))
+                return;
+
+            assessmentStarted = true;
+            message = "Press T to ask: Are you okay?";
+        }
 
         bool talkPressed = false;
 
@@ -50,24 +100,29 @@ public class ResponsivenessCheck : MonoBehaviour
         talkPressed = Input.GetKeyDown(KeyCode.T);
 #endif
 
-        bool leftTouching = CPRInteraction.Touching(
-            leftPalmContact, shoulderZone, contactTolerance);
-
-        bool rightTouching = CPRInteraction.Touching(
-            rightPalmContact, shoulderZone, contactTolerance);
-
         if (talkPressed && !talked)
         {
             talked = true;
+
             message =
                 "No response to voice. Move either hand onto the " +
                 "shoulder, then move it away to simulate a tap.";
         }
 
-        if (!talked)
+        if (!talked || !ShoulderZoneActive())
             return;
 
-        // Require hands to start outside the shoulder zone.
+        bool leftTouching = CPRInteraction.Touching(
+            leftPalmContact,
+            shoulderZone,
+            contactTolerance);
+
+        bool rightTouching = CPRInteraction.Touching(
+            rightPalmContact,
+            shoulderZone,
+            contactTolerance);
+
+        // Both hands must leave the shoulder before a new tap can begin.
         if (!readyForTap)
         {
             if (!leftTouching && !rightTouching)
@@ -76,6 +131,7 @@ public class ResponsivenessCheck : MonoBehaviour
             return;
         }
 
+        // Remember which hand touched the shoulder.
         if (tappingPalm == null)
         {
             if (leftTouching)
@@ -89,23 +145,42 @@ public class ResponsivenessCheck : MonoBehaviour
             return;
         }
 
-        if (!shoulderZone.enabled ||
-            !shoulderZone.gameObject.activeInHierarchy)
-            return;
-
+        // Complete the tap when the same hand moves away.
         if (CPRInteraction.Touching(
-                tappingPalm, shoulderZone, contactTolerance))
+                tappingPalm,
+                shoulderZone,
+                contactTolerance))
+        {
             return;
+        }
 
         completed = true;
-        Debug.Log("Responsiveness check completed.", this);
-        onResponsivenessCompleted.Invoke();
+        message = "No response detected to the shoulder tap.";
+
+        finishTime =
+            Time.time + Mathf.Max(0f, resultDisplayDuration);
+
+        Debug.Log(
+            "No response detected to the shoulder tap.",
+            this);
+    }
+
+    private bool ShoulderZoneActive()
+    {
+        return shoulderZone != null &&
+               shoulderZone.enabled &&
+               shoulderZone.gameObject.activeInHierarchy;
     }
 
     private void OnGUI()
     {
-        if (!completed)
-            CPRInteraction.ShowInstruction(
-                "1. CHECK RESPONSIVENESS", message);
+        if (!enabled || feedbackFinished)
+            return;
+
+        CPRInteraction.ShowInstruction(
+            assessmentStarted
+                ? "1. CHECK RESPONSIVENESS"
+                : "APPROACH THE CASUALTY",
+            message);
     }
 }

@@ -3,6 +3,7 @@ using UnityEngine.Events;
 
 public class AirwayCheck : MonoBehaviour
 {
+    [Header("Contact zones")]
     public Collider foreheadZone;
     public Collider chinZone;
 
@@ -12,14 +13,20 @@ public class AirwayCheck : MonoBehaviour
     public float contactTolerance = 0.015f;
     public float placementHoldDuration = 1f;
 
+    [Header("Feedback")]
+    [Min(0f)]
+    public float resultDisplayDuration = 2f;
+
+    [Header("Completion event")]
     public UnityEvent onAirwayCompleted = new UnityEvent();
 
     private bool started;
     private bool completed;
     private bool foreheadEstablished;
+    private bool feedbackFinished;
 
     private float holdTimer;
-    private float completionTime;
+    private float finishTime;
     private string message;
 
     private void Start()
@@ -31,7 +38,8 @@ public class AirwayCheck : MonoBehaviour
         {
             Debug.LogError(
                 "AirwayCheck: assign both zones and " +
-                "both palm contact points.", this);
+                "both palm contact points.",
+                this);
 
             enabled = false;
         }
@@ -43,19 +51,28 @@ public class AirwayCheck : MonoBehaviour
             return;
 
         started = true;
-        completed = false;
-        foreheadEstablished = false;
-        holdTimer = 0f;
 
         message =
-            "Press 1 to select LEFT. Hold SHIFT and click " +
-            "the forehead. Keep the left hand there.";
+            "Press 1 to select the LEFT hand. Hold Shift and " +
+            "click the forehead. Keep the left hand there.";
     }
 
     private void Update()
     {
-        if (!started || completed)
+        if (!started)
             return;
+
+        // Show the result before starting the breathing step.
+        if (completed)
+        {
+            if (!feedbackFinished && Time.time >= finishTime)
+            {
+                feedbackFinished = true;
+                onAirwayCompleted.Invoke();
+            }
+
+            return;
+        }
 
         bool leftOnForehead = CPRInteraction.Touching(
             leftPalmContact,
@@ -73,8 +90,9 @@ public class AirwayCheck : MonoBehaviour
             holdTimer = 0f;
 
             message =
-                "Press 1 to select LEFT. SHIFT + left-click " +
-                "the forehead and wait for contact.";
+                "Press 1 to select the LEFT hand. Hold Shift " +
+                "and click the forehead. Keep that hand there.";
+
             return;
         }
 
@@ -84,8 +102,9 @@ public class AirwayCheck : MonoBehaviour
             holdTimer = 0f;
 
             message =
-                "LEFT hand in position. Press 2 to select RIGHT. " +
-                "SHIFT + left-click beneath the chin.";
+                "Left hand in position. Press 2 to select the " +
+                "RIGHT hand, then hold Shift and click beneath the chin.";
+
             return;
         }
 
@@ -94,8 +113,9 @@ public class AirwayCheck : MonoBehaviour
             holdTimer = 0f;
 
             message =
-                "Keep LEFT on the forehead. Press 2, then " +
-                "SHIFT + left-click beneath the chin.";
+                "Keep the left hand on the forehead. Press 2, " +
+                "then hold Shift and click beneath the chin.";
+
             return;
         }
 
@@ -114,23 +134,23 @@ public class AirwayCheck : MonoBehaviour
         if (holdTimer >= requiredDuration)
         {
             completed = true;
-            completionTime = Time.time;
 
             message =
-                "Head tilted and chin lifted (simulated). " +
-                "Next: check breathing.";
+                "Head tilted and chin lifted to open the airway.\n" +
+                "Simulated action completed. Next: check breathing.";
+
+            finishTime =
+                Time.time + Mathf.Max(0f, resultDisplayDuration);
 
             Debug.Log(
                 "Simulated head tilt and chin lift completed.",
                 this);
-
-            onAirwayCompleted.Invoke();
         }
     }
 
     private void OnGUI()
     {
-        if (!started || completed)
+        if (!enabled || !started || feedbackFinished)
             return;
 
         CPRInteraction.ShowInstruction(

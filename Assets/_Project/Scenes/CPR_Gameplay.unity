@@ -301,6 +301,8 @@ MonoBehaviour:
   shoulderZone: {fileID: 881766639}
   leftPalmContact: {fileID: 74455087}
   rightPalmContact: {fileID: 1354082528}
+  playerCamera: {fileID: 38547533}
+  activationDistance: 2
   contactTolerance: 0.015
   onResponsivenessCompleted:
     m_PersistentCalls:
@@ -1319,11 +1321,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6976751025350629177, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: -0.92
       objectReference: {fileID: 0}
     - target: {fileID: 6976751025350629177, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -1
+      value: 0.31
       objectReference: {fileID: 0}
     - target: {fileID: 7126025560551857328, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1336,6 +1338,18 @@ PrefabInstance:
     - target: {fileID: 7952447145070719898, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
       propertyPath: m_Name
       value: TrainingRoomEnvironment
+      objectReference: {fileID: 0}
+    - target: {fileID: 8562866123893500239, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -4.146
+      objectReference: {fileID: 0}
+    - target: {fileID: 8562866123893500239, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8562866123893500239, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -1.206
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
