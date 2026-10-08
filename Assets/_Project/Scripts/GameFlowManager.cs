@@ -33,9 +33,24 @@ public class GameFlowManager : MonoBehaviour
     [Tooltip("XR Camera Offset used as the spatial position reference for the button.")]
     public Transform cameraOffset;
 
+    [Header("Guide model")]
+    [Tooltip("Optional override for the guide model. If empty, Resources/guider is loaded.")]
+    public GameObject guiderPrefab;
+
+    [Tooltip("Optional point inside the training room where the guide begins.")]
+    public Transform guiderStartPoint;
+
+    [Min(0.1f)]
+    public float guiderMoveDuration = 1.5f;
+
+    [Min(0.5f)]
+    public float guiderDistanceFromPlayer = 1.5f;
+
     public UnityEvent onTrainingStarted = new UnityEvent();
 
     private Canvas startCanvas;
+    private GameObject guiderInstance;
+    private bool guiderWasInstantiated;
 
     private void Start()
     {
@@ -83,6 +98,7 @@ public class GameFlowManager : MonoBehaviour
         if (startCanvas != null)
             startCanvas.gameObject.SetActive(false);
 
+        ShowGuider();
         onTrainingStarted.Invoke();
     }
 
@@ -159,6 +175,88 @@ public class GameFlowManager : MonoBehaviour
         label.color = Color.white;
     }
 
+    private void ShowGuider()
+    {
+        if (guiderInstance != null)
+            return;
+
+        Camera playerCamera = Camera.main;
+        if (playerCamera == null)
+        {
+            Debug.LogError(
+                "GameFlowManager: a MainCamera is required to place the guide model.",
+                this);
+            return;
+        }
+
+        Transform cameraTransform = playerCamera.transform;
+        Transform positionReference = ResolveCameraOffset(cameraTransform);
+
+        guiderInstance = FindSceneGuider();
+        if (guiderInstance == null)
+        {
+            GameObject guiderAsset = guiderPrefab;
+            if (guiderAsset == null)
+                guiderAsset = Resources.Load<GameObject>("guider");
+
+            if (guiderAsset == null)
+            {
+                Debug.LogError(
+                    "GameFlowManager: could not find the guide model. " +
+                    "Place a model named guider in the scene, assign " +
+                    "guiderPrefab, or place guider.fbx in a Resources folder.",
+                    this);
+                return;
+            }
+
+            Vector3 startPosition = guiderStartPoint != null
+                ? guiderStartPoint.position
+                : transform.position;
+            guiderInstance = Instantiate(guiderAsset, startPosition, Quaternion.identity);
+            guiderWasInstantiated = true;
+        }
+
+        Vector3 playerPosition =
+            positionReference.position +
+            cameraTransform.forward * Mathf.Max(0.5f, guiderDistanceFromPlayer);
+        Vector3 targetPosition = guiderInstance.transform.position;
+        targetPosition.z = playerPosition.z;
+
+        StartCoroutine(MoveGuider(guiderInstance.transform, targetPosition));
+    }
+
+    private GameObject FindSceneGuider()
+    {
+        Transform[] transforms = FindObjectsOfType<Transform>(true);
+        foreach (Transform candidate in transforms)
+        {
+            if (candidate.name == "guider")
+                return candidate.gameObject;
+        }
+
+        return null;
+    }
+
+    private System.Collections.IEnumerator MoveGuider(
+        Transform guiderTransform,
+        Vector3 targetPosition)
+    {
+        Vector3 startPosition = guiderTransform.position;
+        float elapsed = 0f;
+
+        while (elapsed < guiderMoveDuration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / guiderMoveDuration);
+            progress = progress * progress * (3f - 2f * progress);
+            guiderTransform.position =
+                Vector3.Lerp(startPosition, targetPosition, progress);
+            yield return null;
+        }
+
+        guiderTransform.position = targetPosition;
+    }
+
     private void EnsureXRUIInputModule()
     {
         EventSystem eventSystem = FindObjectOfType<EventSystem>();
@@ -199,5 +297,8 @@ public class GameFlowManager : MonoBehaviour
     {
         if (startCanvas != null)
             Destroy(startCanvas.gameObject);
+
+        if (guiderWasInstantiated && guiderInstance != null)
+            Destroy(guiderInstance);
     }
 }
