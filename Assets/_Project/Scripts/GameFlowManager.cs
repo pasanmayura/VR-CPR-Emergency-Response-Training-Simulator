@@ -216,6 +216,8 @@ public class GameFlowManager : MonoBehaviour
             guiderWasInstantiated = true;
         }
 
+        ApplyGuiderTextures();
+
         Vector3 playerPosition =
             positionReference.position +
             cameraTransform.forward * Mathf.Max(0.5f, guiderDistanceFromPlayer);
@@ -223,6 +225,49 @@ public class GameFlowManager : MonoBehaviour
         targetPosition.z = playerPosition.z;
 
         StartCoroutine(MoveGuider(guiderInstance.transform, targetPosition));
+    }
+
+    private void ApplyGuiderTextures()
+    {
+        Texture2D diffuseTexture =
+            Resources.Load<Texture2D>("guider/rp_mei_posed_001_dif_2k");
+        Texture2D normalTexture =
+            Resources.Load<Texture2D>("guider/rp_mei_posed_001_norm_2k");
+
+        if (diffuseTexture == null)
+        {
+            Debug.LogError(
+                "GameFlowManager: the guide diffuse texture could not be loaded.",
+                this);
+            return;
+        }
+
+        Renderer[] renderers = guiderInstance.GetComponentsInChildren<Renderer>(true);
+        foreach (Renderer renderer in renderers)
+        {
+            Material[] materials = renderer.materials;
+            foreach (Material material in materials)
+            {
+                if (material == null)
+                    continue;
+
+                if (material.HasProperty("_BaseMap"))
+                    material.SetTexture("_BaseMap", diffuseTexture);
+                if (material.HasProperty("_MainTex"))
+                    material.SetTexture("_MainTex", diffuseTexture);
+
+                if (normalTexture == null)
+                    continue;
+
+                if (material.HasProperty("_BumpMap"))
+                {
+                    material.SetTexture("_BumpMap", normalTexture);
+                    material.EnableKeyword("_NORMALMAP");
+                }
+                if (material.HasProperty("_NormalMap"))
+                    material.SetTexture("_NormalMap", normalTexture);
+            }
+        }
     }
 
     private GameObject FindSceneGuider()
