@@ -8,6 +8,7 @@ using UnityEngine.XR.Interaction.Toolkit.UI;
 using UnityEngine.InputSystem;
 #endif
 
+[RequireComponent(typeof(AudioSource))]
 public class GameFlowManager : MonoBehaviour
 {
     public enum TrainingStage
@@ -46,14 +47,48 @@ public class GameFlowManager : MonoBehaviour
     [Min(0.5f)]
     public float guiderDistanceFromPlayer = 1.5f;
 
+    [Header("Guide audio")]
+    [Range(0f, 1f)]
+    public float guiderArrivalVolume = 1f;
+
+    [Header("Guide departure")]
+    [Min(0.1f)]
+    public float guiderWalkDistance = 1f;
+
+    [Min(0.1f)]
+    public float guiderWalkSpeed = 0.5f;
+
+    [Min(0.1f)]
+    public float guiderRotationDuration = 0.5f;
+
     public UnityEvent onTrainingStarted = new UnityEvent();
 
     private Canvas startCanvas;
     private GameObject guiderInstance;
     private bool guiderWasInstantiated;
+    private AudioSource audioSource;
+    private AudioClip guiderArrivalClip;
 
     private void Start()
     {
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
+
+        audioSource.playOnAwake = false;
+        audioSource.loop = false;
+        audioSource.spatialBlend = 0f;
+        guiderArrivalClip =
+            Resources.Load<AudioClip>("guider/ControlGuider");
+
+        if (guiderArrivalClip == null)
+        {
+            Debug.LogError(
+                "GameFlowManager: the guide arrival audio could not be loaded. " +
+                "Place ControlGuider.mp3 in Assets/_Project/Resources/guider.",
+                this);
+        }
+
         CreateStartButton();
     }
 
@@ -300,6 +335,56 @@ public class GameFlowManager : MonoBehaviour
         }
 
         guiderTransform.position = targetPosition;
+        StartCoroutine(PlayArrivalSequence(guiderTransform));
+    }
+
+    private System.Collections.IEnumerator PlayArrivalSequence(
+        Transform guiderTransform)
+    {
+        if (guiderArrivalClip == null)
+            yield break;
+
+        audioSource.PlayOneShot(guiderArrivalClip, guiderArrivalVolume);
+        yield return new WaitForSeconds(guiderArrivalClip.length);
+
+        Quaternion startRotation = guiderTransform.rotation;
+        Quaternion targetRotation = Quaternion.Euler(-90f, 90f, 0f);
+        float rotationElapsed = 0f;
+
+        while (rotationElapsed < guiderRotationDuration)
+        {
+            rotationElapsed += Time.deltaTime;
+            float rotationProgress =
+                Mathf.Clamp01(rotationElapsed / guiderRotationDuration);
+            rotationProgress =
+                rotationProgress * rotationProgress *
+                (3f - 2f * rotationProgress);
+            guiderTransform.rotation =
+                Quaternion.Slerp(startRotation, targetRotation, rotationProgress);
+            yield return null;
+        }
+
+        guiderTransform.rotation = targetRotation;
+
+        Vector3 walkStart = guiderTransform.position;
+        Vector3 walkTarget =
+            walkStart + Vector3.right * guiderWalkDistance;
+        float walkDuration =
+            guiderWalkDistance / Mathf.Max(0.1f, guiderWalkSpeed);
+        float walkElapsed = 0f;
+
+        while (walkElapsed < walkDuration)
+        {
+            walkElapsed += Time.deltaTime;
+            float walkProgress = Mathf.Clamp01(walkElapsed / walkDuration);
+            walkProgress =
+                walkProgress * walkProgress * (3f - 2f * walkProgress);
+            guiderTransform.position =
+                Vector3.Lerp(walkStart, walkTarget, walkProgress);
+            yield return null;
+        }
+
+        guiderTransform.position = walkTarget;
     }
 
     private void EnsureXRUIInputModule()
