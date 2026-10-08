@@ -31,6 +31,8 @@ public class EmergencyAssistance : MonoBehaviour
 
     private void Start()
     {
+        ResolveMissingReferences();
+
         if (phoneCollider == null ||
             leftPalmContact == null ||
             rightPalmContact == null)
@@ -41,6 +43,36 @@ public class EmergencyAssistance : MonoBehaviour
                 this);
 
             enabled = false;
+        }
+    }
+
+    private void ResolveMissingReferences()
+    {
+        if (leftPalmContact == null)
+        {
+            GameObject leftContact = GameObject.Find("LeftPalmContact");
+            if (leftContact != null)
+                leftPalmContact = leftContact.transform;
+        }
+
+        if (rightPalmContact == null)
+        {
+            GameObject rightContact = GameObject.Find("RightPalmContact");
+            if (rightContact != null)
+                rightPalmContact = rightContact.transform;
+        }
+
+        if (phoneCollider == null)
+        {
+            Collider[] colliders = FindObjectsOfType<Collider>(true);
+            foreach (Collider candidate in colliders)
+            {
+                if (candidate.gameObject.name == "Phone_Placeholder")
+                {
+                    phoneCollider = candidate;
+                    break;
+                }
+            }
         }
     }
 
