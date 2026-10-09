@@ -1,0 +1,51 @@
+CPR VR - SOUND FILES (world sounds only, no voice / instruction / phone sounds)
+================================================================================
+Put each file in its folder with EXACTLY this name (.wav, .ogg or .mp3 are all fine).
+Then in Unity: Tools > Pavithra > Setup Spatial Audio  (it reports anything missing).
+Prefer mono files: Unity places mono sounds in 3D best.
+
+Ambience/   (seamless loops, 30 s or longer)
+  ambience_room_hum          air conditioner / ventilation hum
+  ambience_traffic_outside   distant city traffic (heard through the window)
+  ambience_wall_clock        clock ticking
+  ambience_light_buzz        fluorescent ceiling light buzz (very quiet)
+  ambience_dog_barking       a dog barking a few times (2-5 s, NOT a loop: it is
+                             repeated with random pauses, behind the room)
+  ambience_wind_leaves       wind blowing through tree leaves (seamless loop)
+  ambience_birds             birds chirping in a tree (seamless loop)
+
+Vehicles/
+  vehicle_three_wheeler_engine   three-wheeler / tuk-tuk / auto-rickshaw engine
+                                 DRIVING at a steady speed (seamless loop, 5 s or more).
+                                 Not a "pass-by" recording: Unity adds the Doppler
+                                 effect itself while it drives along the street.
+
+Footsteps/   (the player's own steps on the room's tiled floor, one step each, under 0.5 s)
+  footstep_floor_01          shoe step on a hard tile / concrete floor
+  footstep_floor_02          (four slightly different steps, so they never repeat)
+  footstep_floor_03
+  footstep_floor_04
+
+Touch/   (short, under 1 s)
+  touch_shoulder_tap         hand tapping a shoulder through clothing
+  touch_skin                 soft hand-on-skin / cloth rustle
+
+CPR/   (short, under 0.5 s, three slightly different takes)
+  cpr_compression_01         dull chest press thud
+  cpr_compression_02
+  cpr_compression_03
+
+AED/
+  aed_pad_peel               sticker / adhesive peel
+  aed_pad_place              pad pressed onto the chest (soft slap)
+  aed_charge                 rising electronic charging whine (2-4 s)
+  aed_shock                  defibrillator shock "thump" / electric zap
+
+Ambulance/
+  ambulance_siren_loop       siren, seamless loop
+  ambulance_brake            vehicle braking / stopping
+  ambulance_door             van door opening
+  ambulance_footsteps        2-3 people walking in quickly
+
+Free sources: freesound.org (CC0 licence only), pixabay.com/sound-effects, kenney.nl
+Write every file's source and licence in CREDITS.txt.
