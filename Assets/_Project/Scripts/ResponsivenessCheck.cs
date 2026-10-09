@@ -13,8 +13,10 @@ public class ResponsivenessCheck : MonoBehaviour
     [Min(0.1f)]
     public float activationDistance = 2f;
 
-    [Header("Initial instruction audio")]
+    [Header("Instruction audio")]
     public AudioClip initialInstructionClip;
+    public AudioClip askResponsivenessClip;
+    public AudioClip shoulderTapClip;
     public Transform trainingRoom;
     public Vector3 trainingRoomSize = new Vector3(8f, 3f, 8f);
 
@@ -43,6 +45,8 @@ public class ResponsivenessCheck : MonoBehaviour
     private GameFlowManager gameFlowManager;
     private AudioSource instructionAudio;
     private bool initialInstructionPlayed;
+    private bool askResponsivenessPlayed;
+    private bool shoulderTapPlayed;
 
     private string message =
         "Approach the person and check for a response.";
@@ -77,13 +81,13 @@ public class ResponsivenessCheck : MonoBehaviour
             return;
         }
 
-        if (initialInstructionClip != null)
+        if (initialInstructionClip != null || askResponsivenessClip != null ||
+            shoulderTapClip != null)
         {
             instructionAudio = gameObject.AddComponent<AudioSource>();
             instructionAudio.playOnAwake = false;
             instructionAudio.loop = false;
             instructionAudio.spatialBlend = 0f;
-            instructionAudio.clip = initialInstructionClip;
         }
     }
 
@@ -102,7 +106,7 @@ public class ResponsivenessCheck : MonoBehaviour
             if (roomBounds.Contains(localPosition))
             {
                 initialInstructionPlayed = true;
-                instructionAudio.Play();
+                PlayInstruction(initialInstructionClip);
             }
         }
 
@@ -136,7 +140,14 @@ public class ResponsivenessCheck : MonoBehaviour
             assessmentStarted = true;
             if (instructionAudio != null)
                 instructionAudio.Stop();
-            message = "Press T to ask: Are you okay?";
+            message = "Press T to ask the person, 'Are you okay?'";
+        }
+
+        if (!talked && !askResponsivenessPlayed &&
+            gameFlowManager.GuideIntroductionFinished)
+        {
+            askResponsivenessPlayed = true;
+            PlayInstruction(askResponsivenessClip);
         }
 
         bool talkPressed = false;
@@ -151,10 +162,19 @@ public class ResponsivenessCheck : MonoBehaviour
         if (talkPressed && !talked)
         {
             talked = true;
+            if (instructionAudio != null)
+                instructionAudio.Stop();
 
             message =
-                "No response to voice. Move either hand onto the " +
-                "shoulder, then move it away to simulate a tap.";
+                "No response to your voice? Gently tap the person's shoulder " +
+                "using either VR controller.";
+        }
+
+        if (talked && tappingPalm == null && !shoulderTapPlayed &&
+            gameFlowManager.GuideIntroductionFinished)
+        {
+            shoulderTapPlayed = true;
+            PlayInstruction(shoulderTapClip);
         }
 
         if (!talked || !ShoulderZoneActive())
@@ -188,7 +208,11 @@ public class ResponsivenessCheck : MonoBehaviour
                 tappingPalm = rightPalmContact;
 
             if (tappingPalm != null)
+            {
+                if (instructionAudio != null)
+                    instructionAudio.Stop();
                 message = "Shoulder touched. Move that hand away.";
+            }
 
             return;
         }
@@ -211,6 +235,17 @@ public class ResponsivenessCheck : MonoBehaviour
         Debug.Log(
             "No response detected to the shoulder tap.",
             this);
+    }
+
+    private void PlayInstruction(AudioClip clip)
+    {
+        if (instructionAudio == null)
+            return;
+
+        instructionAudio.Stop();
+        instructionAudio.clip = clip;
+        if (clip != null)
+            instructionAudio.Play();
     }
 
     private bool ShoulderZoneActive()
