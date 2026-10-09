@@ -277,6 +277,16 @@ public class CompressionSystem : MonoBehaviour
         {
             Completed = true;
             started = false;
+
+            message =
+                "Compression practice block completed.\n" +
+                "Average rhythm: " + AverageRate.ToString("F0") + "/min.";
+
+            CPRInteraction.ShowInstruction(
+                "6. COMPRESSIONS — " +
+                CompressionCount + "/" +
+                Mathf.Max(1, targetCompressions),
+                message);
         }
 
         onCompressionRecorded.Invoke(record);
