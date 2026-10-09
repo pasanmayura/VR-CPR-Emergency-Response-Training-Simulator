@@ -35,6 +35,7 @@ public class ResponsivenessCheck : MonoBehaviour
 
     private Transform tappingPalm;
     private float finishTime;
+    private GameFlowManager gameFlowManager;
 
     private string message =
         "A person needs emergency assistance. Approach them.";
@@ -43,6 +44,17 @@ public class ResponsivenessCheck : MonoBehaviour
     {
         if (playerCamera == null && Camera.main != null)
             playerCamera = Camera.main.transform;
+
+        gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null)
+        {
+            Debug.LogError(
+                "ResponsivenessCheck: a GameFlowManager is required before " +
+                "the responsiveness step can begin.",
+                this);
+            enabled = false;
+            return;
+        }
 
         if (playerCamera == null ||
             shoulderZone == null ||
@@ -60,6 +72,9 @@ public class ResponsivenessCheck : MonoBehaviour
 
     private void Update()
     {
+        if (!gameFlowManager.TrainingStarted)
+            return;
+
         // Display the shoulder-tap result before starting the next step.
         if (completed)
         {
@@ -174,7 +189,10 @@ public class ResponsivenessCheck : MonoBehaviour
 
     private void OnGUI()
     {
-        if (!enabled || feedbackFinished)
+        if (!enabled ||
+            feedbackFinished ||
+            gameFlowManager == null ||
+            !gameFlowManager.TrainingStarted)
             return;
 
         CPRInteraction.ShowInstruction(

@@ -47,6 +47,10 @@ public class AirwayCheck : MonoBehaviour
 
     public void BeginAirwayStep()
     {
+        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+            return;
+
         if (started || !enabled)
             return;
 

@@ -56,6 +56,10 @@ public class CPRHandPlacement : MonoBehaviour
 
     public void BeginHandPlacement()
     {
+        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+            return;
+
         if (started || Completed || !enabled)
             return;
 

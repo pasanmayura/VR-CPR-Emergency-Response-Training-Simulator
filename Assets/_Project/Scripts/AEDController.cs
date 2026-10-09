@@ -96,6 +96,10 @@ public class AEDController : MonoBehaviour
 
     public void BeginAEDStage()
     {
+        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+            return;
+
         if (stageStarted)
             return;
 

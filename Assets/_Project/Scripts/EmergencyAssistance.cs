@@ -78,6 +78,10 @@ public class EmergencyAssistance : MonoBehaviour
 
     public void BeginAssistanceStep()
     {
+        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+            return;
+
         if (!completed)
             available = true;
     }

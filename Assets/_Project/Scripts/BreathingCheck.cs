@@ -21,6 +21,10 @@ public class BreathingCheck : MonoBehaviour
 
     public void BeginBreathingStep()
     {
+        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+            return;
+
         if (started || completed || !enabled)
             return;
 

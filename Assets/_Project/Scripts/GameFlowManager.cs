@@ -29,6 +29,7 @@ public class GameFlowManager : MonoBehaviour
     }
 
     public TrainingStage CurrentStage { get; private set; } = TrainingStage.Start;
+    public bool TrainingStarted { get; private set; }
 
     [Header("Start button")]
     [Min(0.5f)]
@@ -171,6 +172,7 @@ public class GameFlowManager : MonoBehaviour
         if (CurrentStage != TrainingStage.Start)
             return;
 
+        TrainingStarted = true;
         SetStage(TrainingStage.Tutorial);
         SetPlayerMovementEnabled(false);
 

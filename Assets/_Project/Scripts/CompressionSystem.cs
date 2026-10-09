@@ -116,6 +116,10 @@ public class CompressionSystem : MonoBehaviour
 
     public void BeginCompressionStage()
     {
+        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+            return;
+
         if (!configurationValid ||
             !enabled ||
             started ||
