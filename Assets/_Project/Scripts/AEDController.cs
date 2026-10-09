@@ -109,6 +109,23 @@ public class AEDController : MonoBehaviour
         Debug.Log("AED stage started.", this);
     }
 
+    public void ActivateAED()
+    {
+        if (!stageStarted || ShockDelivered)
+            return;
+
+        if (!PoweredOn)
+        {
+            PowerOn();
+            return;
+        }
+
+        if (ShockAdvised)
+        {
+            DeliverShock();
+        }
+    }
+
     public void PowerOn()
     {
         if (!stageStarted || PoweredOn)

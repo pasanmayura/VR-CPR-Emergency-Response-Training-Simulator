@@ -514,7 +514,19 @@ MonoBehaviour:
       m_Calls: []
   m_FirstSelectEntered:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 87845711}
+        m_TargetAssemblyTypeName: AEDController, Assembly-CSharp
+        m_MethodName: ActivateAED
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_LastSelectExited:
     m_PersistentCalls:
       m_Calls: []
@@ -2880,7 +2892,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1395733172}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8a35f6cfbfba9b548aaa00d52cfe8a50, type: 3}
   m_Name: 
@@ -2984,10 +2996,10 @@ BoxCollider:
   m_GameObject: {fileID: 1395733172}
   m_Material: {fileID: 0}
   m_IsTrigger: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
-  m_Size: {x: 0.0009842416, y: 0.0014601025, z: 0.00046264144}
-  m_Center: {x: -0.0000347103, y: -0.00059638015, z: 0.0010226675}
+  m_Size: {x: 0.0012820698, y: 0.0014601023, z: 0.00046264144}
+  m_Center: {x: 0.00011420362, y: -0.00059638015, z: 0.0010226675}
 --- !u!1 &1440078034 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: -1313621453841358339, guid: b86dd3cc49348b143b6f787162139937, type: 3}
@@ -3002,10 +3014,10 @@ BoxCollider:
   m_GameObject: {fileID: 1440078034}
   m_Material: {fileID: 0}
   m_IsTrigger: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
-  m_Size: {x: 0.0012009084, y: 0.0012236398, z: 0.0004922734}
-  m_Center: {x: 0.000013008714, y: 0.0010859213, z: 0.0010007477}
+  m_Size: {x: 0.0013445559, y: 0.0012236398, z: 0.00049227336}
+  m_Center: {x: 0.000084832194, y: 0.0010859213, z: 0.0010007479}
 --- !u!114 &1440078038
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3013,7 +3025,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1440078034}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8a35f6cfbfba9b548aaa00d52cfe8a50, type: 3}
   m_Name: 
