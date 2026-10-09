@@ -682,6 +682,7 @@ MonoBehaviour:
   leftPalmContact: {fileID: 771728535}
   rightPalmContact: {fileID: 390507946}
   contactTolerance: 0.015
+  callingClip: {fileID: 8300000, guid: bf7ada20119f42ce8edc574b983e68d9, type: 3}
   resultDisplayDuration: 3
   onAssistanceRequested:
     m_PersistentCalls:
