@@ -721,6 +721,8 @@ MonoBehaviour:
   foreheadInstructionClip: {fileID: 8300000, guid: aad06d731c175f44fb250012f8eaa5da, type: 3}
   chinInstructionClip: {fileID: 8300000, guid: 3a4e51439fe34afcaae1a75d74fb2d0b, type: 3}
   keepForeheadInstructionClip: {fileID: 8300000, guid: 28cc1fd184854bbbbb82bf8a99517a02, type: 3}
+  holdTimerClip: {fileID: 8300000, guid: 1d9cf7fee6444d14ac5eade48bf72f3e, type: 3}
+  holdTimerVolume: 0.5
   resultDisplayDuration: 2
   onAirwayCompleted:
     m_PersistentCalls:
