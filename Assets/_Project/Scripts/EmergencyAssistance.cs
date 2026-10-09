@@ -11,6 +11,7 @@ public class EmergencyAssistance : MonoBehaviour
     public float contactTolerance = 0.015f;
 
     [Header("Call audio")]
+    public AudioClip assistanceInstructionClip;
     public AudioClip callingClip;
 
     [Header("Feedback")]
@@ -88,8 +89,15 @@ public class EmergencyAssistance : MonoBehaviour
         if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
             return;
 
-        if (!completed)
-            available = true;
+        if (!isActiveAndEnabled || completed || available)
+            return;
+
+        available = true;
+        if (assistanceInstructionClip != null)
+        {
+            callAudio.clip = assistanceInstructionClip;
+            callAudio.Play();
+        }
     }
 
     private void Update()
@@ -123,6 +131,7 @@ public class EmergencyAssistance : MonoBehaviour
         if (touching)
         {
             completed = true;
+            callAudio.Stop();
             if (callingClip != null)
             {
                 callAudio.clip = callingClip;
@@ -151,9 +160,9 @@ public class EmergencyAssistance : MonoBehaviour
 
         CPRInteraction.ShowInstruction(
             "2. REQUEST ASSISTANCE",
-            "Call for emergency assistance. Press 1 or 2 " +
-            "to select a hand, then hold Shift and click " +
-            "the phone to call 1990.");
+            "Call for emergency help. " +
+            "Move either controller to the phone and " +
+            "left click to make the emergency call.");
     }
 
     private void OnDisable()

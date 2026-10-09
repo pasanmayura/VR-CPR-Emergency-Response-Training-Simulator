@@ -13,6 +13,11 @@ public class AirwayCheck : MonoBehaviour
     public float contactTolerance = 0.015f;
     public float placementHoldDuration = 1f;
 
+    [Header("Instruction audio")]
+    public AudioClip foreheadInstructionClip;
+    public AudioClip chinInstructionClip;
+    public AudioClip keepForeheadInstructionClip;
+
     [Header("Feedback")]
     [Min(0f)]
     public float resultDisplayDuration = 2f;
@@ -23,11 +28,27 @@ public class AirwayCheck : MonoBehaviour
     private bool started;
     private bool completed;
     private bool foreheadEstablished;
+    private bool foreheadReminderActive;
     private bool feedbackFinished;
 
     private float holdTimer;
     private float finishTime;
     private string message;
+    private AudioSource instructionAudio;
+    private const string ForeheadInstruction =
+        "Move the left controller to the person's forehead and keep it there.";
+    private const string ChinInstruction =
+        "Then move the right controller beneath the chin to complete the simulated airway-opening position.";
+    private const string KeepForeheadInstruction =
+        "Keep the left hand on the forehead. Don't move it.";
+
+    private void Awake()
+    {
+        instructionAudio = gameObject.AddComponent<AudioSource>();
+        instructionAudio.playOnAwake = false;
+        instructionAudio.loop = false;
+        instructionAudio.spatialBlend = 0f;
+    }
 
     private void Start()
     {
@@ -51,14 +72,13 @@ public class AirwayCheck : MonoBehaviour
         if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
             return;
 
-        if (started || !enabled)
+        if (started || !isActiveAndEnabled)
             return;
 
         started = true;
 
-        message =
-            "Press 1 to select the LEFT hand. Hold Shift and " +
-            "click the forehead. Keep the left hand there.";
+        message = ForeheadInstruction;
+        PlayInstruction(foreheadInstructionClip);
     }
 
     private void Update()
@@ -90,12 +110,20 @@ public class AirwayCheck : MonoBehaviour
 
         if (!leftOnForehead)
         {
+            // Play only on loss of established contact, not every frame away.
+            if (foreheadEstablished)
+            {
+                foreheadReminderActive = !rightOnChin;
+                PlayInstruction(foreheadReminderActive
+                    ? keepForeheadInstructionClip
+                    : foreheadInstructionClip);
+            }
             foreheadEstablished = false;
             holdTimer = 0f;
 
-            message =
-                "Press 1 to select the LEFT hand. Hold Shift " +
-                "and click the forehead. Keep that hand there.";
+            message = foreheadReminderActive
+                ? KeepForeheadInstruction
+                : ForeheadInstruction;
 
             return;
         }
@@ -103,11 +131,11 @@ public class AirwayCheck : MonoBehaviour
         if (!foreheadEstablished)
         {
             foreheadEstablished = true;
+            foreheadReminderActive = false;
+            PlayInstruction(rightOnChin ? null : chinInstructionClip);
             holdTimer = 0f;
 
-            message =
-                "Left hand in position. Press 2 to select the " +
-                "RIGHT hand, then hold Shift and click beneath the chin.";
+            message = ChinInstruction;
 
             return;
         }
@@ -116,13 +144,12 @@ public class AirwayCheck : MonoBehaviour
         {
             holdTimer = 0f;
 
-            message =
-                "Keep the left hand on the forehead. Press 2, " +
-                "then hold Shift and click beneath the chin.";
+            message = ChinInstruction;
 
             return;
         }
 
+        instructionAudio.Stop();
         holdTimer += Time.deltaTime;
 
         float requiredDuration =
@@ -150,6 +177,20 @@ public class AirwayCheck : MonoBehaviour
                 "Simulated head tilt and chin lift completed.",
                 this);
         }
+    }
+
+    private void PlayInstruction(AudioClip clip)
+    {
+        instructionAudio.Stop();
+        instructionAudio.clip = clip;
+        if (clip != null)
+            instructionAudio.Play();
+    }
+
+    private void OnDisable()
+    {
+        if (instructionAudio != null)
+            instructionAudio.Stop();
     }
 
     private void OnGUI()
