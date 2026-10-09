@@ -13,6 +13,11 @@ public class ResponsivenessCheck : MonoBehaviour
     [Min(0.1f)]
     public float activationDistance = 2f;
 
+    [Header("Initial instruction audio")]
+    public AudioClip initialInstructionClip;
+    public Transform trainingRoom;
+    public Vector3 trainingRoomSize = new Vector3(8f, 3f, 8f);
+
     [Header("Shoulder contact")]
     public Collider shoulderZone;
     public Transform leftPalmContact;
@@ -36,9 +41,11 @@ public class ResponsivenessCheck : MonoBehaviour
     private Transform tappingPalm;
     private float finishTime;
     private GameFlowManager gameFlowManager;
+    private AudioSource instructionAudio;
+    private bool initialInstructionPlayed;
 
     private string message =
-        "A person needs emergency assistance. Approach them.";
+        "Approach the person and check for a response.";
 
     private void Start()
     {
@@ -67,6 +74,16 @@ public class ResponsivenessCheck : MonoBehaviour
                 this);
 
             enabled = false;
+            return;
+        }
+
+        if (initialInstructionClip != null)
+        {
+            instructionAudio = gameObject.AddComponent<AudioSource>();
+            instructionAudio.playOnAwake = false;
+            instructionAudio.loop = false;
+            instructionAudio.spatialBlend = 0f;
+            instructionAudio.clip = initialInstructionClip;
         }
     }
 
@@ -74,6 +91,20 @@ public class ResponsivenessCheck : MonoBehaviour
     {
         if (!gameFlowManager.TrainingStarted)
             return;
+
+        if (!assessmentStarted && !initialInstructionPlayed &&
+            instructionAudio != null && trainingRoom != null &&
+            gameFlowManager.GuideIntroductionFinished)
+        {
+            Vector3 localPosition = trainingRoom.InverseTransformPoint(playerCamera.position);
+            Bounds roomBounds = new Bounds(
+                Vector3.up * trainingRoomSize.y * 0.5f, trainingRoomSize);
+            if (roomBounds.Contains(localPosition))
+            {
+                initialInstructionPlayed = true;
+                instructionAudio.Play();
+            }
+        }
 
         // Display the shoulder-tap result before starting the next step.
         if (completed)
@@ -103,6 +134,8 @@ public class ResponsivenessCheck : MonoBehaviour
                 return;
 
             assessmentStarted = true;
+            if (instructionAudio != null)
+                instructionAudio.Stop();
             message = "Press T to ask: Are you okay?";
         }
 
@@ -187,6 +220,12 @@ public class ResponsivenessCheck : MonoBehaviour
                shoulderZone.gameObject.activeInHierarchy;
     }
 
+    private void OnDisable()
+    {
+        if (instructionAudio != null)
+            instructionAudio.Stop();
+    }
+
     private void OnGUI()
     {
         if (!enabled ||
@@ -198,7 +237,7 @@ public class ResponsivenessCheck : MonoBehaviour
         CPRInteraction.ShowInstruction(
             assessmentStarted
                 ? "1. CHECK RESPONSIVENESS"
-                : "APPROACH THE CASUALTY",
+                : "CHECK RESPONSIVENESS",
             message);
     }
 }

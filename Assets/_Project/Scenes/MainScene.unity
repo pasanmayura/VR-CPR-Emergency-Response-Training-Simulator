@@ -626,6 +626,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerCamera: {fileID: 673045941}
   activationDistance: 2
+  initialInstructionClip: {fileID: 8300000, guid: e5a0cf5f59ef4eafb037acc13b77608d, type: 3}
+  trainingRoom: {fileID: 177769921}
+  trainingRoomSize: {x: 8, y: 3, z: 8}
   shoulderZone: {fileID: 881766639}
   leftPalmContact: {fileID: 771728535}
   rightPalmContact: {fileID: 390507946}

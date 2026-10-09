@@ -30,6 +30,7 @@ public class GameFlowManager : MonoBehaviour
 
     public TrainingStage CurrentStage { get; private set; } = TrainingStage.Start;
     public bool TrainingStarted { get; private set; }
+    public bool GuideIntroductionFinished => TrainingStarted && playerMovementEnabled;
 
     [Header("Start button")]
     [Min(0.5f)]
