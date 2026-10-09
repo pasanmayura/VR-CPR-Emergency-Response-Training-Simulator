@@ -29,15 +29,14 @@ public class AEDController : MonoBehaviour
 
     [Header("Events")]
     public UnityEvent onPoweredOn = new UnityEvent();
+    public UnityEvent onShockDelivered = new UnityEvent();
 
     public bool PoweredOn { get; private set; }
     public bool BothPadsAttached { get; private set; }
     public bool ShockAdvised { get; private set; }
+    public bool ShockDelivered { get; private set; }
 
     private bool stageStarted;
-    private bool placementReferencesValid;
-    private bool safetyReferencesValid;
-
     private float clearTimer;
     private float analysisTimer;
 
@@ -49,34 +48,48 @@ public class AEDController : MonoBehaviour
         "below the collarbone. Place Pad 2 on their left side, " +
         "just below the armpit.";
 
+    private bool PlacementReferencesValid()
+    {
+        return pad1 != null &&
+               pad2 != null &&
+               pad1 != pad2 &&
+               pad1Socket != null &&
+               pad2Socket != null &&
+               pad1Socket != pad2Socket;
+    }
+
+    private bool SafetyReferencesValid()
+    {
+        return leftHandContact != null &&
+               rightHandContact != null &&
+               leftHandContact != rightHandContact &&
+               mannequinContactZone != null;
+    }
+
+    private bool SafetyDetectionAvailable()
+    {
+        return SafetyReferencesValid() &&
+               mannequinContactZone.enabled &&
+               mannequinContactZone.gameObject.activeInHierarchy &&
+               leftHandContact.gameObject.activeInHierarchy &&
+               rightHandContact.gameObject.activeInHierarchy;
+    }
+
     private void Start()
     {
-        placementReferencesValid =
-            pad1 != null &&
-            pad2 != null &&
-            pad1 != pad2 &&
-            pad1Socket != null &&
-            pad2Socket != null &&
-            pad1Socket != pad2Socket;
-
-        safetyReferencesValid =
-            leftHandContact != null &&
-            rightHandContact != null &&
-            leftHandContact != rightHandContact &&
-            mannequinContactZone != null;
-
-        if (!placementReferencesValid)
+        if (!PlacementReferencesValid())
         {
             Debug.LogError(
                 "AEDController: assign both pads and " +
-                "their two separate sockets.", this);
+                "their two separate placement sockets.",
+                this);
         }
 
-        if (!safetyReferencesValid)
+        if (!SafetyReferencesValid())
         {
             Debug.LogError(
-                "AEDController: assign both tracked hand " +
-                "contact points and the mannequin contact zone.",
+                "AEDController: assign both hand contact points " +
+                "and the mannequin contact zone.",
                 this);
         }
     }
@@ -88,12 +101,12 @@ public class AEDController : MonoBehaviour
 
         stageStarted = true;
 
-        Debug.Log("AED stage started.", this);
-
         ShowFeedback(
             "7. USE THE AED",
             "Bring the AED beside the person. " +
             "Press its green power button.");
+
+        Debug.Log("AED stage started.", this);
     }
 
     public void PowerOn()
@@ -114,36 +127,37 @@ public class AEDController : MonoBehaviour
 
     private void Update()
     {
-        if (!PoweredOn || !placementReferencesValid)
+        if (!PoweredOn || ShockDelivered)
             return;
 
-        bool firstPlaced = CorrectPadInSocket(
-            pad1Socket, pad1);
+        if (!PlacementReferencesValid())
+        {
+            BothPadsAttached = false;
+            ResetAnalysis();
 
-        bool secondPlaced = CorrectPadInSocket(
-            pad2Socket, pad2);
+            ShowFeedback(
+                "7. AED SETUP INCOMPLETE",
+                "Check both pad references and their placement sockets.");
+
+            return;
+        }
+
+        bool firstPlaced = CorrectPadInSocket(pad1Socket, pad1);
+        bool secondPlaced = CorrectPadInSocket(pad2Socket, pad2);
 
         BothPadsAttached = firstPlaced && secondPlaced;
 
         if (!BothPadsAttached)
         {
-            // Removing a pad cancels the current analysis.
-            clearTimer = 0f;
-            analysisTimer = 0f;
-            ShockAdvised = false;
-
+            ResetAnalysis();
             ShowPlacementFeedback(firstPlaced, secondPlaced);
             return;
         }
 
-        if (!safetyReferencesValid ||
-            !mannequinContactZone.enabled ||
-            !mannequinContactZone.gameObject.activeInHierarchy)
+        if (!SafetyDetectionAvailable())
         {
-            ShowFeedback(
-                "8. AED SETUP INCOMPLETE",
-                "Stand-clear detection is unavailable. " +
-                "Check the hand references and contact zone.");
+            ResetAnalysis();
+            ShowSafetySetupFeedback();
             return;
         }
 
@@ -152,18 +166,22 @@ public class AEDController : MonoBehaviour
         if (ShockAdvised)
         {
             ShowFeedback(
-                "8. SHOCK ADVISED — SIMULATION",
                 handsClear
-                    ? "Keep everyone clear. Do not touch the person."
-                    : "Move both hands away. Do not touch the person.");
+                    ? "8. SHOCK ADVISED — SIMULATION"
+                    : "8. STAND CLEAR — SHOCK BLOCKED",
+                handsClear
+                    ? "Keep everyone clear. Do not touch the person. " +
+                      "Press the red shock button."
+                    : "Move both hands away from the person. " +
+                      "Keep everyone clear before pressing " +
+                      "the red shock button.");
 
             return;
         }
 
         if (!handsClear)
         {
-            clearTimer = 0f;
-            analysisTimer = 0f;
+            ResetAnalysis();
 
             ShowFeedback(
                 "8. STAND CLEAR",
@@ -180,6 +198,7 @@ public class AEDController : MonoBehaviour
             ShowFeedback(
                 "8. STAND CLEAR",
                 "Both pads are attached. Keep both hands clear.");
+
             return;
         }
 
@@ -189,23 +208,111 @@ public class AEDController : MonoBehaviour
         {
             ShowFeedback(
                 "8. ANALYSING — SIMULATION",
-                "Analysing heart rhythm. " +
-                "Do not touch the person.");
+                "Analysing heart rhythm. Do not touch the person.");
 
             return;
         }
 
-        // This is a scripted training result,
-        // not a measurement of a real heart rhythm.
+        // Scripted training result, not a real rhythm measurement.
         ShockAdvised = true;
 
         ShowFeedback(
             "8. SHOCK ADVISED — SIMULATION",
-            "Keep everyone clear. Do not touch the person.");
+            "Keep everyone clear. Do not touch the person. " +
+            "Press the red shock button.");
 
         Debug.Log(
             "Simulated AED analysis completed: shock advised.",
             this);
+    }
+
+    public void DeliverShock()
+    {
+        if (!stageStarted || !PoweredOn || ShockDelivered)
+            return;
+
+        if (!PlacementReferencesValid())
+        {
+            BothPadsAttached = false;
+            ResetAnalysis();
+
+            ShowFeedback(
+                "7. AED SETUP INCOMPLETE",
+                "Check both pad references and their placement sockets.");
+
+            return;
+        }
+
+        // Recheck actual socket selections at the button press.
+        bool firstPlaced = CorrectPadInSocket(pad1Socket, pad1);
+        bool secondPlaced = CorrectPadInSocket(pad2Socket, pad2);
+
+        BothPadsAttached = firstPlaced && secondPlaced;
+
+        if (!BothPadsAttached)
+        {
+            ResetAnalysis();
+            ShowPlacementFeedback(firstPlaced, secondPlaced);
+
+            Debug.Log(
+                "Simulated shock blocked: both pads must be attached.",
+                this);
+
+            return;
+        }
+
+        if (!SafetyDetectionAvailable())
+        {
+            ResetAnalysis();
+            ShowSafetySetupFeedback();
+            return;
+        }
+
+        if (!HandsAreClear())
+        {
+            if (!ShockAdvised)
+                ResetAnalysis();
+
+            ShowFeedback(
+                "8. STAND CLEAR — SHOCK BLOCKED",
+                "Move both hands away from the person. " +
+                "Keep everyone clear before pressing " +
+                "the red shock button.");
+
+            Debug.Log(
+                "Simulated shock blocked: a hand is near the mannequin.",
+                this);
+
+            return;
+        }
+
+        if (!ShockAdvised)
+        {
+            Debug.Log(
+                "Simulated shock blocked: analysis is not complete.",
+                this);
+
+            return;
+        }
+
+        // Set this before invoking the event to prevent repeat shocks.
+        ShockDelivered = true;
+        ShockAdvised = false;
+
+        ShowFeedback(
+            "9. SHOCK DELIVERED — SIMULATION",
+            "One simulated shock has been delivered.");
+
+        Debug.Log("Simulated AED shock delivered.", this);
+
+        onShockDelivered.Invoke();
+    }
+
+    private void ResetAnalysis()
+    {
+        clearTimer = 0f;
+        analysisTimer = 0f;
+        ShockAdvised = false;
     }
 
     private bool HandsAreClear()
@@ -223,8 +330,17 @@ public class AEDController : MonoBehaviour
         return !leftTouching && !rightTouching;
     }
 
+    private void ShowSafetySetupFeedback()
+    {
+        ShowFeedback(
+            "8. AED SETUP INCOMPLETE",
+            "Stand-clear detection is unavailable. " +
+            "Check the hand references and contact zone.");
+    }
+
     private void ShowPlacementFeedback(
-        bool firstPlaced, bool secondPlaced)
+        bool firstPlaced,
+        bool secondPlaced)
     {
         if (firstPlaced)
         {
@@ -254,9 +370,12 @@ public class AEDController : MonoBehaviour
         XRSocketInteractor socket,
         XRGrabInteractable expectedPad)
     {
-        if (!socket.isActiveAndEnabled ||
+        if (socket == null || expectedPad == null ||
+            !socket.isActiveAndEnabled ||
             !expectedPad.isActiveAndEnabled)
+        {
             return false;
+        }
 
         foreach (IXRSelectInteractable selectedPad
                  in socket.interactablesSelected)
@@ -272,7 +391,9 @@ public class AEDController : MonoBehaviour
     {
         if (title == displayedTitle &&
             message == displayedMessage)
+        {
             return;
+        }
 
         displayedTitle = title;
         displayedMessage = message;
