@@ -1,8 +1,22 @@
 using UnityEngine;
+using TMPro;
 
 public static class CPRInteraction
 {
     public static bool CallButtonVisible;
+
+    private static TMP_Text instructionText;
+
+    public static void RegisterInstructionText(TMP_Text text)
+    {
+        instructionText = text;
+    }
+
+    public static void UnregisterInstructionText(TMP_Text text)
+    {
+        if (instructionText == text)
+            instructionText = null;
+    }
 
     public static Rect CallButtonRect
     {
@@ -39,29 +53,13 @@ public static class CPRInteraction
 
     public static void ShowInstruction(string title, string message)
     {
-        float width = Mathf.Min(560f, Screen.width - 32f);
+        if (instructionText == null)
+            return;
 
-        Color oldBackground = GUI.backgroundColor;
-        GUI.backgroundColor = new Color(0.15f, 0.19f, 0.24f);
+        string content = title + "\n\n" + message;
 
-        GUI.Box(new Rect(16, 16, width, 86), GUIContent.none);
-        GUI.backgroundColor = oldBackground;
-
-        GUIStyle titleStyle = new GUIStyle(GUI.skin.label);
-        titleStyle.fontSize = 16;
-        titleStyle.fontStyle = FontStyle.Bold;
-        titleStyle.normal.textColor = Color.cyan;
-
-        GUIStyle textStyle = new GUIStyle(GUI.skin.label);
-        textStyle.fontSize = 14;
-        textStyle.wordWrap = true;
-        textStyle.normal.textColor = Color.white;
-
-        GUI.Label(new Rect(28, 23, width - 24, 24),
-                  title, titleStyle);
-
-        GUI.Label(new Rect(28, 49, width - 24, 46),
-                  message, textStyle);
+        if (instructionText.text != content)
+            instructionText.text = content;
     }
 
     public static bool ShowCallButton()

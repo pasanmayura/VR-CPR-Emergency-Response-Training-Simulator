@@ -1080,8 +1080,8 @@ BoxCollider:
   m_IsTrigger: 1
   m_Enabled: 1
   serializedVersion: 2
-  m_Size: {x: 0.027238173, y: 0.0149191115, z: 0.027776502}
-  m_Center: {x: 0.01923557, y: 0.005864403, z: 0.15777141}
+  m_Size: {x: 0.031079756, y: 0.016953722, z: 0.027776502}
+  m_Center: {x: 0.021156365, y: 0.0048470986, z: 0.15777138}
 --- !u!4 &893423034 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 9014170783705847996, guid: 895f6f3c2d334633b5800312285058d2, type: 3}
@@ -2016,6 +2016,10 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 461912589545312935, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 7e85dbdca8f65aa4a81b3670ba2fc7cd, type: 2}
     - target: {fileID: 5337806498339851090, guid: 45d4cbc6c358d474499a4af915a08404, type: 3}
       propertyPath: m_RootOrder
       value: 3
