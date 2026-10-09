@@ -17,6 +17,7 @@ public class ResponsivenessCheck : MonoBehaviour
     public AudioClip initialInstructionClip;
     public AudioClip askResponsivenessClip;
     public AudioClip shoulderTapClip;
+    public AudioClip shoulderTouchedClip;
     public Transform trainingRoom;
     public Vector3 trainingRoomSize = new Vector3(8f, 3f, 8f);
 
@@ -82,7 +83,7 @@ public class ResponsivenessCheck : MonoBehaviour
         }
 
         if (initialInstructionClip != null || askResponsivenessClip != null ||
-            shoulderTapClip != null)
+            shoulderTapClip != null || shoulderTouchedClip != null)
         {
             instructionAudio = gameObject.AddComponent<AudioSource>();
             instructionAudio.playOnAwake = false;
@@ -212,6 +213,8 @@ public class ResponsivenessCheck : MonoBehaviour
                 if (instructionAudio != null)
                     instructionAudio.Stop();
                 message = "Shoulder touched. Move that hand away.";
+                if (gameFlowManager.GuideIntroductionFinished)
+                    PlayInstruction(shoulderTouchedClip);
             }
 
             return;
@@ -227,6 +230,8 @@ public class ResponsivenessCheck : MonoBehaviour
         }
 
         completed = true;
+        if (instructionAudio != null)
+            instructionAudio.Stop();
         message = "No response detected to the shoulder tap.";
 
         finishTime =

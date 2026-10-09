@@ -629,6 +629,7 @@ MonoBehaviour:
   initialInstructionClip: {fileID: 8300000, guid: e5a0cf5f59ef4eafb037acc13b77608d, type: 3}
   askResponsivenessClip: {fileID: 8300000, guid: 86311ce8e45e4df895286d24577ebecc, type: 3}
   shoulderTapClip: {fileID: 8300000, guid: 76a597d1cefc4711ae4c1541d5241a9f, type: 3}
+  shoulderTouchedClip: {fileID: 8300000, guid: 684a7e9c3a454265827c975582cc01bb, type: 3}
   trainingRoom: {fileID: 177769921}
   trainingRoomSize: {x: 8, y: 3, z: 8}
   shoulderZone: {fileID: 881766639}
