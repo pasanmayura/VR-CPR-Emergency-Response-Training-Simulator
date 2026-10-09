@@ -692,9 +692,9 @@ MonoBehaviour:
   onResponsivenessCompleted:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 87845711}
-        m_TargetAssemblyTypeName: AEDController, Assembly-CSharp
-        m_MethodName: BeginAEDStage
+      - m_Target: {fileID: 167857698}
+        m_TargetAssemblyTypeName: EmergencyAssistance, Assembly-CSharp
+        m_MethodName: BeginAssistanceStep
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -3169,6 +3169,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   shockMessageDuration: 5
   ambulanceArrivalDelay: 5
+  handoverDuration: 5
   ambulanceVisual: {fileID: 0}
   onSimulatedRecovery:
     m_PersistentCalls:
