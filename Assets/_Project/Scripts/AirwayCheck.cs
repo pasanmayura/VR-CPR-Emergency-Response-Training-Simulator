@@ -52,9 +52,11 @@ public class AirwayCheck : MonoBehaviour
 
         started = true;
 
-        message =
+        message = CPRInput.Text(
             "Press 1 to select the LEFT hand. Hold Shift and " +
-            "click the forehead. Keep the left hand there.";
+            "click the forehead. Keep the left hand there.",
+            "Place your LEFT controller on the forehead. " +
+            "Keep the left hand there.");
     }
 
     private void Update()
@@ -89,9 +91,11 @@ public class AirwayCheck : MonoBehaviour
             foreheadEstablished = false;
             holdTimer = 0f;
 
-            message =
+            message = CPRInput.Text(
                 "Press 1 to select the LEFT hand. Hold Shift " +
-                "and click the forehead. Keep that hand there.";
+                "and click the forehead. Keep that hand there.",
+                "Place your LEFT controller on the forehead. " +
+                "Keep that hand there.");
 
             return;
         }
@@ -101,9 +105,11 @@ public class AirwayCheck : MonoBehaviour
             foreheadEstablished = true;
             holdTimer = 0f;
 
-            message =
+            message = CPRInput.Text(
                 "Left hand in position. Press 2 to select the " +
-                "RIGHT hand, then hold Shift and click beneath the chin.";
+                "RIGHT hand, then hold Shift and click beneath the chin.",
+                "Left hand in position. Now place your RIGHT " +
+                "controller beneath the chin.");
 
             return;
         }
@@ -112,9 +118,11 @@ public class AirwayCheck : MonoBehaviour
         {
             holdTimer = 0f;
 
-            message =
+            message = CPRInput.Text(
                 "Keep the left hand on the forehead. Press 2, " +
-                "then hold Shift and click beneath the chin.";
+                "then hold Shift and click beneath the chin.",
+                "Keep the LEFT controller on the forehead and " +
+                "place the RIGHT controller beneath the chin.");
 
             return;
         }

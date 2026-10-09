@@ -20,6 +20,11 @@ public class ResponsivenessCheck : MonoBehaviour
 
     public float contactTolerance = 0.015f;
 
+#if ENABLE_INPUT_SYSTEM
+    [Header("Input (optional: empty = T key)")]
+    public InputActionReference talkAction;
+#endif
+
     [Header("Feedback")]
     [Min(0f)]
     public float resultDisplayDuration = 2f;
@@ -88,14 +93,16 @@ public class ResponsivenessCheck : MonoBehaviour
                 return;
 
             assessmentStarted = true;
-            message = "Press T to ask: Are you okay?";
+            message = CPRInput.Text(
+                "Press T to ask: Are you okay?",
+                "Press B on the RIGHT controller (keyboard: O) " +
+                "to ask: Are you okay?");
         }
 
         bool talkPressed = false;
 
 #if ENABLE_INPUT_SYSTEM
-        if (Keyboard.current != null)
-            talkPressed = Keyboard.current.tKey.wasPressedThisFrame;
+        talkPressed = CPRInput.WasPressed(talkAction, Key.T);
 #elif ENABLE_LEGACY_INPUT_MANAGER
         talkPressed = Input.GetKeyDown(KeyCode.T);
 #endif

@@ -38,6 +38,11 @@ public class CompressionSystem : MonoBehaviour
     public Transform leftPalmContact;
     public Transform rightPalmContact;
 
+#if ENABLE_INPUT_SYSTEM
+    [Header("Input (optional: empty = Space key)")]
+    public InputActionReference compressAction;
+#endif
+
     [Header("Hand animation")]
     public HandController handController;
 
@@ -138,9 +143,11 @@ public class CompressionSystem : MonoBehaviour
 
         records.Clear();
 
-        message =
+        message = CPRInput.Text(
             "Keep both hands positioned. Press and release SPACE " +
-            "once per compression. Aim for 100–120/min.";
+            "once per compression. Aim for 100–120/min.",
+            "Keep both hands positioned. Pull and release a TRIGGER " +
+            "(keyboard: F) once per compression. Aim for 100–120/min.");
     }
 
     private void Update()
@@ -151,11 +158,8 @@ public class CompressionSystem : MonoBehaviour
         bool compressionPressed = false;
 
 #if ENABLE_INPUT_SYSTEM
-        if (Keyboard.current != null)
-        {
-            compressionPressed =
-                Keyboard.current.spaceKey.wasPressedThisFrame;
-        }
+        compressionPressed =
+            CPRInput.WasPressed(compressAction, Key.Space);
 
 #elif ENABLE_LEGACY_INPUT_MANAGER
         compressionPressed = Input.GetKeyDown(KeyCode.Space);
@@ -253,9 +257,11 @@ public class CompressionSystem : MonoBehaviour
 
         if (!record.hasRhythmMeasurement)
         {
-            message =
+            message = CPRInput.Text(
                 "First compression counted. Keep pressing " +
-                "and releasing SPACE at a steady rhythm.";
+                "and releasing SPACE at a steady rhythm.",
+                "First compression counted. Keep pulling " +
+                "and releasing the TRIGGER at a steady rhythm.");
         }
         else if (LatestRate < minimumRate)
         {
@@ -322,7 +328,8 @@ public class CompressionSystem : MonoBehaviour
             CompressionCount + "/" +
             Mathf.Max(1, targetCompressions),
 
-            "SPACE = compression | Rhythm: " +
+            CPRInput.Text("SPACE", "TRIGGER (F)") +
+            " = compression | Rhythm: " +
             rhythmText + "\n" + message);
     }
 }

@@ -66,9 +66,11 @@ public class CPRHandPlacement : MonoBehaviour
         chestZone.enabled = true;
         upperHandZone.enabled = false;
 
-        message =
+        message = CPRInput.Text(
             "Press 1 to select LEFT. SHIFT + left-click " +
-            "the chest zone on the lower half of the breastbone.";
+            "the chest zone on the lower half of the breastbone.",
+            "Place your LEFT controller on the chest zone, " +
+            "on the lower half of the breastbone.");
     }
 
     private void Update()
@@ -87,9 +89,11 @@ public class CPRHandPlacement : MonoBehaviour
             holdTimer = 0f;
             upperHandZone.enabled = false;
 
-            message =
+            message = CPRInput.Text(
                 "Press 1. SHIFT + left-click the chest zone. " +
-                "Keep the LEFT hand there.";
+                "Keep the LEFT hand there.",
+                "Place your LEFT controller on the chest zone. " +
+                "Keep the LEFT hand there.");
             return;
         }
 
@@ -99,9 +103,11 @@ public class CPRHandPlacement : MonoBehaviour
             holdTimer = 0f;
             upperHandZone.enabled = true;
 
-            message =
+            message = CPRInput.Text(
                 "LEFT hand in position. Press 2. SHIFT + left-click " +
-                "directly above it to position RIGHT.";
+                "directly above it to position RIGHT.",
+                "LEFT hand in position. Place your RIGHT controller " +
+                "directly on top of it.");
             return;
         }
 
@@ -114,9 +120,11 @@ public class CPRHandPlacement : MonoBehaviour
         {
             holdTimer = 0f;
 
-            message =
+            message = CPRInput.Text(
                 "Keep LEFT on the chest. Press 2, then " +
-                "SHIFT + left-click the upper zone above LEFT.";
+                "SHIFT + left-click the upper zone above LEFT.",
+                "Keep LEFT on the chest and place the RIGHT " +
+                "controller on top of it.");
             return;
         }
 

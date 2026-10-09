@@ -61,6 +61,11 @@ public class GameFlowManager : MonoBehaviour
     [Min(0.1f)]
     public float guiderRotationDuration = 0.5f;
 
+#if ENABLE_INPUT_SYSTEM
+    [Header("Input (optional: empty = Enter key)")]
+    public InputActionReference startTrainingAction;
+#endif
+
     public UnityEvent onTrainingStarted = new UnityEvent();
 
     private Canvas startCanvas;
@@ -100,12 +105,8 @@ public class GameFlowManager : MonoBehaviour
         bool startPressed = false;
 
 #if ENABLE_INPUT_SYSTEM
-        if (Keyboard.current != null)
-        {
-            startPressed =
-                Keyboard.current.enterKey.wasPressedThisFrame ||
-                Keyboard.current.numpadEnterKey.wasPressedThisFrame;
-        }
+        startPressed = CPRInput.WasPressed(
+            startTrainingAction, Key.Enter, Key.NumpadEnter);
 #elif ENABLE_LEGACY_INPUT_MANAGER
         startPressed =
             Input.GetKeyDown(KeyCode.Return) ||

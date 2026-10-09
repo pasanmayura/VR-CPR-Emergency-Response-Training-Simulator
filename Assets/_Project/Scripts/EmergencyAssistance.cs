@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.UI;
 
 public class EmergencyAssistance : MonoBehaviour
 {
@@ -9,6 +10,10 @@ public class EmergencyAssistance : MonoBehaviour
     public Transform rightPalmContact;
 
     public float contactTolerance = 0.015f;
+
+    [Header("VR call button (optional: empty = OnGUI button)")]
+    [Tooltip("World-space button beside the phone, pressed with a controller ray.")]
+    public Button worldCallButton;
 
     [Header("Feedback")]
     [Min(0f)]
@@ -27,6 +32,12 @@ public class EmergencyAssistance : MonoBehaviour
     private void Awake()
     {
         CPRInteraction.CallButtonVisible = false;
+
+        if (worldCallButton != null)
+        {
+            worldCallButton.onClick.AddListener(PlaceCall);
+            worldCallButton.gameObject.SetActive(false);
+        }
     }
 
     private void Start()
@@ -116,8 +127,33 @@ public class EmergencyAssistance : MonoBehaviour
         if (touching)
         {
             callScreenOpen = true;
-            CPRInteraction.CallButtonVisible = true;
+
+            if (worldCallButton != null)
+                worldCallButton.gameObject.SetActive(true);
+            else
+                CPRInteraction.CallButtonVisible = true;
         }
+    }
+
+    private void PlaceCall()
+    {
+        if (!callScreenOpen || completed)
+            return;
+
+        completed = true;
+        callScreenOpen = false;
+        CPRInteraction.CallButtonVisible = false;
+
+        if (worldCallButton != null)
+            worldCallButton.gameObject.SetActive(false);
+
+        finishTime =
+            Time.time + Mathf.Max(0f, resultDisplayDuration);
+
+        Debug.Log(
+            "Simulated call: dialled 1990. " +
+            "Assistance is on the way.",
+            this);
     }
 
     private void OnGUI()
@@ -138,30 +174,32 @@ public class EmergencyAssistance : MonoBehaviour
         CPRInteraction.ShowInstruction(
             "2. REQUEST ASSISTANCE",
             callScreenOpen
-                ? "Phone reached. Click the green call button " +
-                  "to dial 1990 and request emergency assistance."
-                : "Call for emergency assistance. Press 1 or 2 " +
-                  "to select a hand, then hold Shift and click " +
-                  "the phone to tap it.");
+                ? (worldCallButton != null
+                    ? "Phone reached. Point a controller at the green " +
+                      "CALL 1990 button beside the phone and pull the " +
+                      "trigger to request emergency assistance."
+                    : "Phone reached. Click the green call button " +
+                      "to dial 1990 and request emergency assistance.")
+                : CPRInput.Text(
+                    "Call for emergency assistance. Press 1 or 2 " +
+                    "to select a hand, then hold Shift and click " +
+                    "the phone to tap it.",
+                    "Call for emergency assistance. Touch the " +
+                    "phone with either controller."));
 
-        if (callScreenOpen && CPRInteraction.ShowCallButton())
+        if (callScreenOpen &&
+            worldCallButton == null &&
+            CPRInteraction.ShowCallButton())
         {
-            completed = true;
-            callScreenOpen = false;
-            CPRInteraction.CallButtonVisible = false;
-
-            finishTime =
-                Time.time + Mathf.Max(0f, resultDisplayDuration);
-
-            Debug.Log(
-                "Simulated call: dialled 1990. " +
-                "Assistance is on the way.",
-                this);
+            PlaceCall();
         }
     }
 
     private void OnDisable()
     {
         CPRInteraction.CallButtonVisible = false;
+
+        if (worldCallButton != null)
+            worldCallButton.gameObject.SetActive(false);
     }
 }
