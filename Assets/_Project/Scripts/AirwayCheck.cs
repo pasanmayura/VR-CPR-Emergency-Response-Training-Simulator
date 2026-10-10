@@ -11,12 +11,14 @@ public class AirwayCheck : MonoBehaviour
     public Transform rightPalmContact;
 
     public float contactTolerance = 0.015f;
-    public float placementHoldDuration = 1f;
+    [Min(0.1f)]
+    public float placementHoldDuration = 5f;
 
     [Header("Instruction audio")]
     public AudioClip foreheadInstructionClip;
     public AudioClip chinInstructionClip;
     public AudioClip keepForeheadInstructionClip;
+    public AudioClip airwayCompletedClip;
     [Min(1f)]
     public float instructionRepeatDelay = 5f;
 
@@ -27,7 +29,7 @@ public class AirwayCheck : MonoBehaviour
 
     [Header("Feedback")]
     [Min(0f)]
-    public float resultDisplayDuration = 2f;
+    public float resultDisplayDuration = 6f;
 
     [Header("Completion event")]
     public UnityEvent onAirwayCompleted = new UnityEvent();
@@ -105,7 +107,8 @@ public class AirwayCheck : MonoBehaviour
         // Show the result before starting the breathing step.
         if (completed)
         {
-            if (!feedbackFinished && Time.time >= finishTime)
+            if (!feedbackFinished && Time.time >= finishTime &&
+                !instructionAudio.isPlaying)
             {
                 feedbackFinished = true;
                 onAirwayCompleted.Invoke();
@@ -196,6 +199,8 @@ public class AirwayCheck : MonoBehaviour
             message =
                 "Head tilted and chin lifted to open the airway.\n" +
                 "Simulated action completed. Next: check breathing.";
+
+            PlayInstruction(airwayCompletedClip);
 
             finishTime =
                 Time.time + Mathf.Max(0f, resultDisplayDuration);

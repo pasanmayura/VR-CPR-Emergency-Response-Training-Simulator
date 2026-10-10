@@ -7,6 +7,15 @@ using UnityEngine.InputSystem;
 
 public class BreathingCheck : MonoBehaviour
 {
+    [Header("Instruction audio")]
+    public AudioClip breathingInstructionClip;
+    public AudioClip observationEndedClip;
+
+    [Header("Observation timer audio")]
+    public AudioClip timerClip;
+    [Range(0f, 1f)]
+    public float timerVolume = 0.5f;
+
     public UnityEvent onBreathingCompleted = new UnityEvent();
 
     public float ObservationSeconds { get; private set; }
@@ -18,6 +27,22 @@ public class BreathingCheck : MonoBehaviour
 
     private float completionTime;
     private string message;
+    private AudioSource instructionAudio;
+    private AudioSource timerAudio;
+
+    private void Awake()
+    {
+        instructionAudio = gameObject.AddComponent<AudioSource>();
+        instructionAudio.playOnAwake = false;
+        instructionAudio.loop = false;
+        instructionAudio.spatialBlend = 0f;
+        timerAudio = gameObject.AddComponent<AudioSource>();
+        timerAudio.playOnAwake = false;
+        timerAudio.loop = true;
+        timerAudio.spatialBlend = 0f;
+        timerAudio.clip = timerClip;
+        timerAudio.volume = timerVolume;
+    }
 
     public void BeginBreathingStep()
     {
@@ -25,7 +50,7 @@ public class BreathingCheck : MonoBehaviour
         if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
             return;
 
-        if (started || completed || !enabled)
+        if (started || completed || !isActiveAndEnabled)
             return;
 
         started = true;
@@ -34,6 +59,11 @@ public class BreathingCheck : MonoBehaviour
         message =
             "Press B to begin checking for normal breathing. " +
             "Then press N when no normal breathing is identified.";
+        if (breathingInstructionClip != null)
+        {
+            instructionAudio.clip = breathingInstructionClip;
+            instructionAudio.Play();
+        }
     }
 
     private void Update()
@@ -63,6 +93,9 @@ public class BreathingCheck : MonoBehaviour
             if (beginPressed)
             {
                 observing = true;
+                instructionAudio.Stop();
+                if (timerClip != null)
+                    timerAudio.Play();
 
                 message =
                     "Look for chest movement and listen for normal " +
@@ -89,6 +122,12 @@ public class BreathingCheck : MonoBehaviour
             {
                 observing = false;
                 observationEnded = true;
+                timerAudio.Stop();
+                if (!noBreathingPressed && observationEndedClip != null)
+                {
+                    instructionAudio.clip = observationEndedClip;
+                    instructionAudio.Play();
+                }
 
                 message =
                     "Observation time ended. Press N to record " +
@@ -102,6 +141,8 @@ public class BreathingCheck : MonoBehaviour
 
     private void CompleteBreathingStep()
     {
+        timerAudio.Stop();
+        instructionAudio.Stop();
         completed = true;
         observing = false;
         completionTime = Time.time;
@@ -128,6 +169,14 @@ public class BreathingCheck : MonoBehaviour
 
         started = false;
         onBreathingCompleted.Invoke();
+    }
+
+    private void OnDisable()
+    {
+        if (timerAudio != null)
+            timerAudio.Stop();
+        if (instructionAudio != null)
+            instructionAudio.Stop();
     }
 
     private void OnGUI()

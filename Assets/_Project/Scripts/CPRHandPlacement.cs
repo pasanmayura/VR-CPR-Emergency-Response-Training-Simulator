@@ -15,6 +15,10 @@ public class CPRHandPlacement : MonoBehaviour
     public float contactTolerance = 0.015f;
     public float placementHoldDuration = 1f;
 
+    [Header("Instruction audio")]
+    public AudioClip leftHandInstructionClip;
+    public AudioClip rightHandInstructionClip;
+
     public UnityEvent onHandsPositioned = new UnityEvent();
 
     public bool Completed { get; private set; }
@@ -23,6 +27,19 @@ public class CPRHandPlacement : MonoBehaviour
     private bool leftEstablished;
     private float holdTimer;
     private string message;
+    private AudioSource instructionAudio;
+    private const string LeftHandInstruction =
+        "Move the left controller to the centre of the chest, over the lower half of the breastbone.";
+    private const string RightHandInstruction =
+        "Keep it there, then place the right controller above the left controller.";
+
+    private void Awake()
+    {
+        instructionAudio = gameObject.AddComponent<AudioSource>();
+        instructionAudio.playOnAwake = false;
+        instructionAudio.loop = false;
+        instructionAudio.spatialBlend = 0f;
+    }
 
     private void Start()
     {
@@ -60,7 +77,7 @@ public class CPRHandPlacement : MonoBehaviour
         if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
             return;
 
-        if (started || Completed || !enabled)
+        if (started || Completed || !isActiveAndEnabled)
             return;
 
         started = true;
@@ -70,9 +87,12 @@ public class CPRHandPlacement : MonoBehaviour
         chestZone.enabled = true;
         upperHandZone.enabled = false;
 
-        message =
-            "Press 1 to select LEFT. SHIFT + left-click " +
-            "the chest zone on the lower half of the breastbone.";
+        message = LeftHandInstruction;
+        if (leftHandInstructionClip != null)
+        {
+            instructionAudio.clip = leftHandInstructionClip;
+            instructionAudio.Play();
+        }
     }
 
     private void Update()
@@ -87,25 +107,29 @@ public class CPRHandPlacement : MonoBehaviour
 
         if (!leftOnChest)
         {
+            if (leftEstablished)
+                instructionAudio.Stop();
             leftEstablished = false;
             holdTimer = 0f;
             upperHandZone.enabled = false;
 
-            message =
-                "Press 1. SHIFT + left-click the chest zone. " +
-                "Keep the LEFT hand there.";
+            message = LeftHandInstruction;
             return;
         }
 
         if (!leftEstablished)
         {
             leftEstablished = true;
+            instructionAudio.Stop();
             holdTimer = 0f;
             upperHandZone.enabled = true;
 
-            message =
-                "LEFT hand in position. Press 2. SHIFT + left-click " +
-                "directly above it to position RIGHT.";
+            message = RightHandInstruction;
+            if (rightHandInstructionClip != null)
+            {
+                instructionAudio.clip = rightHandInstructionClip;
+                instructionAudio.Play();
+            }
             return;
         }
 
@@ -118,12 +142,11 @@ public class CPRHandPlacement : MonoBehaviour
         {
             holdTimer = 0f;
 
-            message =
-                "Keep LEFT on the chest. Press 2, then " +
-                "SHIFT + left-click the upper zone above LEFT.";
+            message = RightHandInstruction;
             return;
         }
 
+        instructionAudio.Stop();
         holdTimer += Time.deltaTime;
 
         message = "Both hands positioned. Keep them steady.";
@@ -139,6 +162,12 @@ public class CPRHandPlacement : MonoBehaviour
 
             onHandsPositioned.Invoke();
         }
+    }
+
+    private void OnDisable()
+    {
+        if (instructionAudio != null)
+            instructionAudio.Stop();
     }
 
     private void OnGUI()
