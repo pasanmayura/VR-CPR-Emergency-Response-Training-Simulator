@@ -24,8 +24,7 @@ public class CompressionRecord
 }
 
 [System.Serializable]
-public class CompressionRecordedEvent :
-    UnityEvent<CompressionRecord>
+public class CompressionRecordedEvent : UnityEvent<CompressionRecord>
 {
 }
 
@@ -34,7 +33,6 @@ public class CompressionSystem : MonoBehaviour
     [Header("Hand placement references")]
     public Collider chestZone;
     public Collider upperHandZone;
-
     public Transform leftPalmContact;
     public Transform rightPalmContact;
 
@@ -42,7 +40,8 @@ public class CompressionSystem : MonoBehaviour
     public HandController handController;
 
     [Header("Practice settings")]
-    public int targetCompressions = 30;
+    [Min(2)] public int targetCompressions = 30;
+    [Min(1)] public int requiredCorrectRhythm = 25;
     public float contactTolerance = 0.015f;
 
     [Header("Rhythm settings")]
@@ -65,10 +64,10 @@ public class CompressionSystem : MonoBehaviour
     public int IncorrectPositionAttempts { get; private set; }
     public int RhythmMeasurements { get; private set; }
     public int CorrectRhythmCount { get; private set; }
+    public int AttemptNumber { get; private set; }
 
     public float LatestRate { get; private set; }
     public float AverageRate { get; private set; }
-
     public bool Completed { get; private set; }
 
     public IReadOnlyList<CompressionRecord> Records
@@ -78,12 +77,15 @@ public class CompressionSystem : MonoBehaviour
 
     private bool started;
     private bool configurationValid;
-
     private float stageStartTime;
     private float firstCompressionTime;
     private float lastCompressionTime;
-
     private string message;
+
+    private int Target
+    {
+        get { return Mathf.Max(2, targetCompressions); }
+    }
 
     private void Awake()
     {
@@ -98,8 +100,24 @@ public class CompressionSystem : MonoBehaviour
         {
             Debug.LogError(
                 "CompressionSystem: assign two separate zones " +
-                "and both palm contact points.",
-                this);
+                "and both palm contact points.", this);
+
+            enabled = false;
+            return;
+        }
+
+        // The first compression has no rhythm measurement.
+        if (requiredCorrectRhythm < 1 ||
+            requiredCorrectRhythm > Target - 1 ||
+            minimumRate <= 0f ||
+            maximumRate < minimumRate)
+        {
+            configurationValid = false;
+
+            Debug.LogError(
+                "CompressionSystem: required correct rhythm must " +
+                "be between 1 and targetCompressions - 1. " +
+                "Check the minimum and maximum rates too.", this);
 
             enabled = false;
             return;
@@ -109,26 +127,36 @@ public class CompressionSystem : MonoBehaviour
         {
             Debug.LogWarning(
                 "CompressionSystem: assign HandController " +
-                "to display compression movement.",
-                this);
+                "to display compression movement.", this);
         }
     }
 
     public void BeginCompressionStage()
     {
-        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
-        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+        GameFlowManager flow = FindObjectOfType<GameFlowManager>();
+
+        if (flow == null || !flow.TrainingStarted)
             return;
 
-        if (!configurationValid ||
-            !enabled ||
-            started ||
-            Completed)
+        if (!configurationValid || !enabled || started || Completed)
             return;
 
         started = true;
         stageStartTime = Time.time;
+        AttemptNumber = 1;
 
+        records.Clear();
+        ResetAttemptCounters();
+
+        message =
+            "Both controllers are positioned correctly.\n" +
+            "Press and release SPACE once for each beat. " +
+            "Get at least " + requiredCorrectRhythm +
+            " correctly timed compressions to pass.";
+    }
+
+    private void ResetAttemptCounters()
+    {
         CompressionCount = 0;
         IncorrectPositionAttempts = 0;
         RhythmMeasurements = 0;
@@ -139,13 +167,6 @@ public class CompressionSystem : MonoBehaviour
 
         firstCompressionTime = 0f;
         lastCompressionTime = 0f;
-
-        records.Clear();
-
-        message =
-            "Good job. Both hands placed correctly.\n" +
-            "Begin chest compressions. Press the spacebar once for each beat, " +
-            "keeping a steady rhythm.";
     }
 
     private void Update()
@@ -157,11 +178,8 @@ public class CompressionSystem : MonoBehaviour
 
 #if ENABLE_INPUT_SYSTEM
         if (Keyboard.current != null)
-        {
             compressionPressed =
                 Keyboard.current.spaceKey.wasPressedThisFrame;
-        }
-
 #elif ENABLE_LEGACY_INPUT_MANAGER
         compressionPressed = Input.GetKeyDown(KeyCode.Space);
 #endif
@@ -174,17 +192,11 @@ public class CompressionSystem : MonoBehaviour
     {
         float now = Time.time;
 
-        bool leftCorrect = CPRInteraction.Touching(
-            leftPalmContact,
-            chestZone,
-            contactTolerance);
-
-        bool rightCorrect = CPRInteraction.Touching(
-            rightPalmContact,
-            upperHandZone,
-            contactTolerance);
-
-        bool correctPosition = leftCorrect && rightCorrect;
+        bool correctPosition =
+            CPRInteraction.Touching(
+                leftPalmContact, chestZone, contactTolerance) &&
+            CPRInteraction.Touching(
+                rightPalmContact, upperHandZone, contactTolerance);
 
         CompressionRecord record = new CompressionRecord
         {
@@ -200,9 +212,9 @@ public class CompressionSystem : MonoBehaviour
             IncorrectPositionAttempts++;
 
             message =
-                "Not counted. Keep LEFT on the chest and RIGHT " +
-                "in the upper zone. Let the hands return " +
-                "before the next compression.";
+                "Not counted. Keep the left controller at the " +
+                "chest position and the right above it. " +
+                "Let the compression animation finish.";
 
             records.Add(record);
             onCompressionRecorded.Invoke(record);
@@ -224,7 +236,6 @@ public class CompressionSystem : MonoBehaviour
                 record.hasRhythmMeasurement = true;
                 record.intervalSeconds = interval;
                 record.ratePerMinute = LatestRate;
-
                 record.rhythmInRange =
                     LatestRate >= minimumRate &&
                     LatestRate <= maximumRate;
@@ -239,7 +250,6 @@ public class CompressionSystem : MonoBehaviour
         CompressionCount++;
         lastCompressionTime = now;
 
-        // Animate both hands for an accepted compression.
         if (handController != null)
             handController.PlayCompressionVisual();
 
@@ -248,69 +258,73 @@ public class CompressionSystem : MonoBehaviour
             float elapsed = now - firstCompressionTime;
 
             if (elapsed > 0f)
-            {
                 AverageRate =
                     60f * (CompressionCount - 1) / elapsed;
-            }
         }
 
         records.Add(record);
 
         if (!record.hasRhythmMeasurement)
-        {
-            message =
-                "First compression counted. Keep pressing " +
-                "and releasing SPACE at a steady rhythm.";
-        }
+            message = "First compression counted. Follow the beat.";
         else if (LatestRate < minimumRate)
-        {
             message = "Too slow. Increase your rhythm.";
-        }
         else if (LatestRate > maximumRate)
-        {
             message = "Too fast. Slow your rhythm.";
-        }
         else
-        {
-            message = "Rhythm within target range. Keep going.";
-        }
+            message = "Correct rhythm. Keep going.";
 
-        bool reachedTarget =
-            CompressionCount >= Mathf.Max(1, targetCompressions);
+        bool reachedTarget = CompressionCount >= Target;
+        bool passed =
+            reachedTarget &&
+            CorrectRhythmCount >= requiredCorrectRhythm;
 
-        if (reachedTarget)
+        if (passed)
         {
             Completed = true;
             started = false;
 
             message =
-                "Compression practice block completed.\n" +
-                "Average rhythm: " + AverageRate.ToString("F0") + "/min.";
+                "Compression practice passed.\n" +
+                "Correct rhythm: " + CorrectRhythmCount +
+                "/" + RhythmMeasurements +
+                ". Average: " + AverageRate.ToString("F0") + "/min.";
 
             CPRInteraction.ShowInstruction(
-                "6. COMPRESSIONS — " +
-                CompressionCount + "/" +
-                Mathf.Max(1, targetCompressions),
-                message);
+                "6. COMPRESSIONS — PASSED", message);
         }
 
+        // Report the final compression before resetting a failed attempt.
         onCompressionRecorded.Invoke(record);
 
-        if (reachedTarget)
-        {
-            Debug.Log(
-                "Compression practice block completed. " +
-                "Count: " + CompressionCount +
-                ", average rhythm: " +
-                AverageRate.ToString("F0") + "/min" +
-                ", rhythm intervals in range: " +
-                CorrectRhythmCount + "/" + RhythmMeasurements +
-                ", incorrect-position attempts: " +
-                IncorrectPositionAttempts,
-                this);
+        if (!reachedTarget)
+            return;
 
+        Debug.Log(
+            "Compression attempt " + AttemptNumber +
+            ": " + (passed ? "PASSED" : "FAILED") +
+            ". Correct rhythm: " + CorrectRhythmCount +
+            "/" + RhythmMeasurements +
+            ". Average: " + AverageRate.ToString("F0") + "/min." +
+            " Incorrect-position attempts: " +
+            IncorrectPositionAttempts, this);
+
+        if (passed)
+        {
             onCompressionStageCompleted.Invoke();
+            return;
         }
+
+        int previousCorrectCount = CorrectRhythmCount;
+
+        AttemptNumber++;
+        ResetAttemptCounters();
+
+        // Keep all previous records for assessment.
+        message =
+            "Attempt failed: " + previousCorrectCount +
+            " correctly timed compressions. You need at least " +
+            requiredCorrectRhythm + ".\n" +
+            "Start again. Press and release SPACE with each beat.";
     }
 
     private void OnGUI()
@@ -323,11 +337,11 @@ public class CompressionSystem : MonoBehaviour
             : "Waiting for second compression";
 
         CPRInteraction.ShowInstruction(
-            "6. COMPRESSIONS — " +
-            CompressionCount + "/" +
-            Mathf.Max(1, targetCompressions),
+            "6. COMPRESSIONS — " + CompressionCount + "/" +
+            Target + " | Attempt " + AttemptNumber,
 
-            "SPACE = compression | Rhythm: " +
-            rhythmText + "\n" + message);
+            "SPACE = compression | Rhythm: " + rhythmText +
+            "\nCorrect rhythm: " + CorrectRhythmCount + "/" +
+            requiredCorrectRhythm + " required\n" + message);
     }
 }
