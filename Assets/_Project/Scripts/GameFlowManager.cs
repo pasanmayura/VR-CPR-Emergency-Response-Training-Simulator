@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using Unity.XR.CoreUtils;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.UI;
@@ -82,6 +83,8 @@ public class GameFlowManager : MonoBehaviour
     private Vector3 lockedCameraLocalPosition;
     private Vector3 lockedOriginPosition;
     private bool playerMovementEnabled;
+    private AEDHandoverController handoverController;
+    private bool restarting;
 
     private void Start()
     {
@@ -133,6 +136,11 @@ public class GameFlowManager : MonoBehaviour
         }
 
         CreateStartButton();
+
+        handoverController = FindObjectOfType<AEDHandoverController>();
+        if (handoverController != null)
+            handoverController.onScenarioCompleted.AddListener(EndTraining);
+
     }
 
     private void Update()
@@ -159,6 +167,52 @@ public class GameFlowManager : MonoBehaviour
 
         if (startPressed)
             StartTraining();
+    }
+
+    public void EndTraining()
+    {
+        if (CurrentStage == TrainingStage.Complete)
+            return;
+
+        SetStage(TrainingStage.Complete);
+        StopAllCoroutines();
+        SetPlayerMovementEnabled(false);
+
+        StartCoroutine(BlackoutBeforeStartScreen());
+    }
+
+    private System.Collections.IEnumerator BlackoutBeforeStartScreen()
+    {
+        // Clear both eyes to black, including controller visuals and spatial UI.
+        foreach (Canvas canvas in FindObjectsOfType<Canvas>())
+            canvas.enabled = false;
+
+        foreach (Camera sceneCamera in FindObjectsOfType<Camera>())
+        {
+            sceneCamera.cullingMask = 0;
+            sceneCamera.clearFlags = CameraClearFlags.SolidColor;
+            sceneCamera.backgroundColor = Color.black;
+        }
+
+        yield return new WaitForSecondsRealtime(2f);
+        RestartTraining();
+    }
+
+    public void RestartTraining()
+    {
+        if (CurrentStage != TrainingStage.Complete || restarting)
+            return;
+
+        Scene scene = gameObject.scene;
+        if (!Application.CanStreamedLevelBeLoaded(scene.path))
+        {
+            Debug.LogError("Add the training scene to Build Settings to enable restarting.", this);
+            return;
+        }
+
+        restarting = true;
+        Time.timeScale = 1f;
+        SceneManager.LoadSceneAsync(scene.path);
     }
 
     public void SetStage(TrainingStage newStage)
@@ -249,6 +303,7 @@ public class GameFlowManager : MonoBehaviour
         textTransform.offsetMax = Vector2.zero;
 
         Text label = textObject.AddComponent<Text>();
+        label.raycastTarget = false;
         label.text = "START TRAINING";
         label.alignment = TextAnchor.MiddleCenter;
         label.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
@@ -460,6 +515,10 @@ public class GameFlowManager : MonoBehaviour
 
     private void LateUpdate()
     {
+        // Never clamp tracked headset position on the completion screen.
+        if (CurrentStage == TrainingStage.Complete)
+            return;
+
         if (playerMovementEnabled || xrOrigin == null)
             return;
 
@@ -523,6 +582,11 @@ public class GameFlowManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (handoverController != null)
+            handoverController.onScenarioCompleted.RemoveListener(EndTraining);
+        if (CurrentStage == TrainingStage.Complete)
+            Time.timeScale = 1f;
+
         if (startCanvas != null)
             Destroy(startCanvas.gameObject);
 
