@@ -2,7 +2,7 @@ using UnityEngine;
 using Unity.XR.CoreUtils;
 
 /// <summary>
-/// Prevents tracked-head movement from bypassing room wall colliders.
+/// Prevents tracked-head movement from bypassing room walls and the metal desk.
 ///
 /// Normal locomotion already uses the XR Origin CharacterController, but an
 /// XR Device Simulator (and real room-scale movement) updates the camera pose
@@ -23,8 +23,17 @@ public class XRWallCollisionGuard : MonoBehaviour
     [Min(0f)]
     public float wallClearance = 0.02f;
 
-    [Tooltip("Only colliders whose object names begin with this text block the tracked head.")]
+    [Tooltip("Colliders under objects whose names begin with this text block the tracked head.")]
     public string wallNamePrefix = "Wall_";
+
+    [Tooltip("Colliders under objects whose names begin with this text block the user's torso.")]
+    public string deskNamePrefix = "metal_office_desk_v2";
+
+    [Min(0.05f)]
+    public float deskCollisionRadius = 0.25f;
+
+    [Min(0f)]
+    public float deskCollisionHeightOffset = 0.9f;
 
     private Vector3 previousHeadPosition;
     private bool initialized;
@@ -95,8 +104,8 @@ public class XRWallCollisionGuard : MonoBehaviour
             Physics.DefaultRaycastLayers,
             QueryTriggerInteraction.Ignore);
 
-        RaycastHit nearestWallHit = default(RaycastHit);
-        bool foundWall = false;
+        RaycastHit nearestBlockingHit = default(RaycastHit);
+        bool foundBlocker = false;
         float nearestDistance = float.PositiveInfinity;
 
         foreach (RaycastHit hit in hits)
@@ -107,12 +116,35 @@ public class XRWallCollisionGuard : MonoBehaviour
             if (hit.distance < nearestDistance)
             {
                 nearestDistance = hit.distance;
-                nearestWallHit = hit;
-                foundWall = true;
+                nearestBlockingHit = hit;
+                foundBlocker = true;
             }
         }
 
-        if (!foundWall)
+        Vector3 deskCastOrigin =
+            previousHeadPosition - Vector3.up * deskCollisionHeightOffset;
+        RaycastHit[] deskHits = Physics.SphereCastAll(
+            deskCastOrigin,
+            Mathf.Max(0.05f, deskCollisionRadius),
+            direction,
+            distance + Mathf.Max(0f, wallClearance),
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Ignore);
+
+        foreach (RaycastHit hit in deskHits)
+        {
+            if (!IsDesk(hit.collider))
+                continue;
+
+            if (hit.distance < nearestDistance)
+            {
+                nearestDistance = hit.distance;
+                nearestBlockingHit = hit;
+                foundBlocker = true;
+            }
+        }
+
+        if (!foundBlocker)
         {
             previousHeadPosition = currentHeadPosition;
             return;
@@ -120,7 +152,7 @@ public class XRWallCollisionGuard : MonoBehaviour
 
         float allowedDistance = Mathf.Max(
             0f,
-            nearestWallHit.distance - Mathf.Max(0f, wallClearance));
+            nearestBlockingHit.distance - Mathf.Max(0f, wallClearance));
 
         Vector3 allowedHeadPosition =
             previousHeadPosition + direction * allowedDistance;
@@ -138,7 +170,7 @@ public class XRWallCollisionGuard : MonoBehaviour
 
     private bool IsRoomWall(Collider collider)
     {
-        if (collider == null)
+        if (collider == null || string.IsNullOrEmpty(wallNamePrefix))
             return false;
 
         if (collider.transform.IsChildOf(xrOrigin.transform))
@@ -150,6 +182,30 @@ public class XRWallCollisionGuard : MonoBehaviour
         {
             if (current.name.StartsWith(
                     wallNamePrefix,
+                    System.StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            current = current.parent;
+        }
+
+        return false;
+    }
+
+    private bool IsDesk(Collider collider)
+    {
+        if (collider == null
+            || string.IsNullOrEmpty(deskNamePrefix)
+            || collider.transform.IsChildOf(xrOrigin.transform))
+            return false;
+
+        Transform current = collider.transform;
+
+        while (current != null)
+        {
+            if (current.name.StartsWith(
+                    deskNamePrefix,
                     System.StringComparison.OrdinalIgnoreCase))
             {
                 return true;
