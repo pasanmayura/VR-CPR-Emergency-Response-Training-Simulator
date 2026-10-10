@@ -4,6 +4,21 @@ using UnityEngine.Events;
 
 public class AEDHandoverController : MonoBehaviour
 {
+    [Header("Instruction audio")]
+    public AudioClip shockDeliveredClip;
+    public AudioClip recoveryClip;
+    public AudioClip ambulanceArrivedClip;
+    public AudioClip trainingCompleteClip;
+    private AudioSource instructionAudio;
+
+    private void Awake()
+    {
+        instructionAudio = gameObject.AddComponent<AudioSource>();
+        instructionAudio.playOnAwake = false;
+        instructionAudio.loop = false;
+        instructionAudio.spatialBlend = 0f;
+    }
+
     [Header("Training delays")]
     [Min(0.1f)]
     public float shockMessageDuration = 3f;
@@ -29,7 +44,7 @@ public class AEDHandoverController : MonoBehaviour
 
     public void BeginPostShockEnding()
     {
-        if (endingStarted)
+        if (endingStarted || !isActiveAndEnabled)
             return;
 
         endingStarted = true;
@@ -38,8 +53,8 @@ public class AEDHandoverController : MonoBehaviour
 
     private IEnumerator PostShockEnding()
     {
-        yield return new WaitForSeconds(
-            Mathf.Max(0.1f, shockMessageDuration));
+        PlayInstruction(shockDeliveredClip);
+        yield return WaitForInstruction(shockMessageDuration);
 
         CPRInteraction.ShowInstruction(
             "10. RECOVERY — SIMULATION",
@@ -48,10 +63,10 @@ public class AEDHandoverController : MonoBehaviour
             "Stay beside them and monitor their breathing. " +
             "Leave the AED switched on and the pads attached.");
 
+        PlayInstruction(recoveryClip);
         onSimulatedRecovery.Invoke();
 
-        yield return new WaitForSeconds(
-            Mathf.Max(0.1f, ambulanceArrivalDelay));
+        yield return WaitForInstruction(ambulanceArrivalDelay);
 
         AmbulanceArrived = true;
 
@@ -66,10 +81,10 @@ public class AEDHandoverController : MonoBehaviour
             "delivered, and normal breathing returned " +
             "in this scenario.");
 
+        PlayInstruction(ambulanceArrivedClip);
         onAmbulanceArrived.Invoke();
 
-        yield return new WaitForSeconds(
-            Mathf.Max(0.1f, handoverDuration));
+        yield return WaitForInstruction(handoverDuration);
 
         CompleteHandover();
     }
@@ -80,6 +95,7 @@ public class AEDHandoverController : MonoBehaviour
             return;
 
         ScenarioCompleted = true;
+        PlayInstruction(trainingCompleteClip);
 
         CPRInteraction.ShowInstruction(
             "12. TRAINING COMPLETE",
@@ -91,5 +107,26 @@ public class AEDHandoverController : MonoBehaviour
             this);
 
         onScenarioCompleted.Invoke();
+    }
+
+    private void PlayInstruction(AudioClip clip)
+    {
+        instructionAudio.Stop();
+        instructionAudio.clip = clip;
+        if (clip != null)
+            instructionAudio.Play();
+    }
+
+    private IEnumerator WaitForInstruction(float minimumDuration)
+    {
+        yield return new WaitForSeconds(Mathf.Max(0.1f, minimumDuration));
+        yield return new WaitUntil(() => !instructionAudio.isPlaying);
+    }
+
+    private void OnDisable()
+    {
+        StopAllCoroutines();
+        if (instructionAudio != null)
+            instructionAudio.Stop();
     }
 }

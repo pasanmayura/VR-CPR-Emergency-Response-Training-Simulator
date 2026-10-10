@@ -560,12 +560,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9d29dc68351911d45aedb20294bbb895, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  retrieveAEDInstructionClip: {fileID: 8300000, guid: 8db040fa8cdfd684085d0bf60836818f, type: 3}
+  carryAEDInstructionClip: {fileID: 8300000, guid: 448880f880a2405986096eb9228fcaad, type: 3}
+  pad1InstructionClip: {fileID: 8300000, guid: 3c7847732df5495da106ab81cf127703, type: 3}
+  pad2InstructionClip: {fileID: 8300000, guid: 41f36515172c408681b58f4e209b4645, type: 3}
+  pad1AttachedInstructionClip: {fileID: 8300000, guid: ec379cd0e8594d9f921753a272e9fc46, type: 3}
+  pad2AttachedInstructionClip: {fileID: 8300000, guid: fc3f1cbafb1b41368d397c75d8724fcc, type: 3}
+  analysingInstructionClip: {fileID: 8300000, guid: 8e6f2bfb306244a7b461a522971efe09, type: 3}
+  shockAdvisedInstructionClip: {fileID: 8300000, guid: 0c5fcf685e344904ac8b7ff400169dc3, type: 3}
   pad1: {fileID: 1715686191}
   pad2: {fileID: 709332246}
   pad1Socket: {fileID: 265842176}
   pad2Socket: {fileID: 378988912}
-  leftHandContact: {fileID: 74455087}
-  rightHandContact: {fileID: 1354082528}
+  leftHandContact: {fileID: 771728535}
+  rightHandContact: {fileID: 390507946}
   mannequinContactZone: {fileID: 1567207342}
   handContactTolerance: 0.08
   clearHoldDuration: 0.5
@@ -4624,6 +4632,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f44ea0fa367e6c46ac1e9bed0a22c17, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  shockDeliveredClip: {fileID: 8300000, guid: 118eb844fba141a498f0db18b52ebd3d, type: 3}
+  recoveryClip: {fileID: 8300000, guid: 8437e00287d54aeb8bd886dcdc134659, type: 3}
+  ambulanceArrivedClip: {fileID: 8300000, guid: 022a98843d8b42ca9cb1b1cdbebd7794, type: 3}
+  trainingCompleteClip: {fileID: 8300000, guid: 45caa2af96db4654bbfd45014e52d229, type: 3}
   shockMessageDuration: 5
   ambulanceArrivalDelay: 5
   handoverDuration: 5
