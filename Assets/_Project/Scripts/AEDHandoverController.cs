@@ -68,6 +68,11 @@ public class AEDHandoverController : MonoBehaviour
 
         yield return WaitForInstruction(ambulanceArrivalDelay);
 
+        yield return AmbulanceHandover();
+    }
+
+    private IEnumerator AmbulanceHandover()
+    {
         AmbulanceArrived = true;
 
         if (ambulanceVisual != null)
@@ -99,13 +104,19 @@ public class AEDHandoverController : MonoBehaviour
 
         CPRInteraction.ShowInstruction(
             "12. TRAINING COMPLETE",
-            "Simulated handover completed. " +
             "The ambulance team has taken over.");
 
         Debug.Log(
             "CPR/AED training scenario completed.",
             this);
 
+        StartCoroutine(FinishCompletionAudio());
+    }
+
+    private IEnumerator FinishCompletionAudio()
+    {
+        // Keep the final instruction visible until its narration has finished.
+        yield return new WaitUntil(() => !instructionAudio.isPlaying);
         onScenarioCompleted.Invoke();
     }
 
