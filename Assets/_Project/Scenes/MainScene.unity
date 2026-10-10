@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 705507994}
-  m_IndirectSpecularColor: {r: 0.42365652, g: 0.45725507, b: 0.43404895, a: 1}
+  m_IndirectSpecularColor: {r: 0.42920175, g: 0.4627924, b: 0.43960798, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -4108,7 +4108,7 @@ BoxCollider:
   m_Enabled: 1
   serializedVersion: 2
   m_Size: {x: 0.027238173, y: 0.0149191115, z: 0.027776502}
-  m_Center: {x: 0.01923557, y: -0.0043280, z: 0.15777141}
+  m_Center: {x: 0.01923557, y: -0.004328, z: 0.15777141}
 --- !u!1 &923951064
 GameObject:
   m_ObjectHideFlags: 0
@@ -4606,8 +4606,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
-  - {fileID: 1380279593}
   - {fileID: 3900000001}
+  - {fileID: 1380279593}
   - {fileID: 1876580493}
   - {fileID: 177769921}
   m_Father: {fileID: 0}
@@ -6572,7 +6572,7 @@ BoxCollider:
   m_Enabled: 1
   serializedVersion: 2
   m_Size: {x: 0.020014316, y: 0.005559098, z: 0.014210488}
-  m_Center: {x: -0.00030818084, y: -0.0099680, z: 0.15057787}
+  m_Center: {x: -0.00030818084, y: -0.009968, z: 0.15057787}
 --- !u!1 &1973412110
 GameObject:
   m_ObjectHideFlags: 0
@@ -7478,7 +7478,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3229407181320726089, guid: 05e31a998a4ccd8429aeefbacdec98c9, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1.35
+      value: 1.2
       objectReference: {fileID: 0}
     - target: {fileID: 3229407181320726089, guid: 05e31a998a4ccd8429aeefbacdec98c9, type: 3}
       propertyPath: m_LocalRotation.w
