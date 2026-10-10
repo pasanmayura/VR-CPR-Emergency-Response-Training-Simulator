@@ -2,12 +2,13 @@ using UnityEngine;
 using Unity.XR.CoreUtils;
 
 /// <summary>
-/// Prevents tracked-head movement from bypassing room wall colliders.
+/// Prevents tracked-head movement from bypassing solid room colliders.
 ///
 /// Normal locomotion already uses the XR Origin CharacterController, but an
 /// XR Device Simulator (and real room-scale movement) updates the camera pose
-/// directly. This guard checks that camera movement against the room walls and
-/// moves the XR Origin back to the last reachable position when necessary.
+/// directly. This guard checks that camera movement against solid room objects
+/// (walls, furniture, mannequin, props) and moves the XR Origin back to the
+/// last reachable position when necessary.
 /// </summary>
 [DisallowMultipleComponent]
 public class XRWallCollisionGuard : MonoBehaviour
@@ -21,10 +22,10 @@ public class XRWallCollisionGuard : MonoBehaviour
     public float headRadius = 0.18f;
 
     [Min(0f)]
-    public float wallClearance = 0.02f;
+    public float clearance = 0.02f;
 
-    [Tooltip("Only colliders whose object names begin with this text block the tracked head.")]
-    public string wallNamePrefix = "Wall_";
+    [Tooltip("Walkable surfaces whose names contain these words are ignored so the player is not blocked by the floor.")]
+    public string[] walkableNameParts = { "Floor", "Ground", "Outside" };
 
     private Vector3 previousHeadPosition;
     private bool initialized;
@@ -75,7 +76,7 @@ public class XRWallCollisionGuard : MonoBehaviour
         Vector3 currentHeadPosition = headCamera.transform.position;
         Vector3 movement = currentHeadPosition - previousHeadPosition;
 
-        // Walls are vertical, so height changes should not be blocked.
+        // Only correct horizontal clipping; vertical head movement stays free.
         Vector3 horizontalMovement =
             Vector3.ProjectOnPlane(movement, Vector3.up);
 
@@ -91,28 +92,28 @@ public class XRWallCollisionGuard : MonoBehaviour
             previousHeadPosition,
             Mathf.Max(0.05f, headRadius),
             direction,
-            distance + Mathf.Max(0f, wallClearance),
+            distance + Mathf.Max(0f, clearance),
             Physics.DefaultRaycastLayers,
             QueryTriggerInteraction.Ignore);
 
-        RaycastHit nearestWallHit = default(RaycastHit);
-        bool foundWall = false;
+        RaycastHit nearestHit = default(RaycastHit);
+        bool foundBlocker = false;
         float nearestDistance = float.PositiveInfinity;
 
         foreach (RaycastHit hit in hits)
         {
-            if (!IsRoomWall(hit.collider))
+            if (!IsBlockingCollider(hit.collider))
                 continue;
 
             if (hit.distance < nearestDistance)
             {
                 nearestDistance = hit.distance;
-                nearestWallHit = hit;
-                foundWall = true;
+                nearestHit = hit;
+                foundBlocker = true;
             }
         }
 
-        if (!foundWall)
+        if (!foundBlocker)
         {
             previousHeadPosition = currentHeadPosition;
             return;
@@ -120,7 +121,7 @@ public class XRWallCollisionGuard : MonoBehaviour
 
         float allowedDistance = Mathf.Max(
             0f,
-            nearestWallHit.distance - Mathf.Max(0f, wallClearance));
+            nearestHit.distance - Mathf.Max(0f, clearance));
 
         Vector3 allowedHeadPosition =
             previousHeadPosition + direction * allowedDistance;
@@ -136,23 +137,43 @@ public class XRWallCollisionGuard : MonoBehaviour
         previousHeadPosition = headCamera.transform.position;
     }
 
-    private bool IsRoomWall(Collider collider)
+    private bool IsBlockingCollider(Collider collider)
     {
-        if (collider == null)
+        if (collider == null || collider.isTrigger)
             return false;
 
         if (collider.transform.IsChildOf(xrOrigin.transform))
             return false;
 
-        Transform current = collider.transform;
+        if (IsWalkableSurface(collider.transform))
+            return false;
+
+        return true;
+    }
+
+    private bool IsWalkableSurface(Transform transform)
+    {
+        if (walkableNameParts == null || walkableNameParts.Length == 0)
+            return false;
+
+        Transform current = transform;
 
         while (current != null)
         {
-            if (current.name.StartsWith(
-                    wallNamePrefix,
-                    System.StringComparison.OrdinalIgnoreCase))
+            string objectName = current.name;
+
+            for (int i = 0; i < walkableNameParts.Length; i++)
             {
-                return true;
+                string part = walkableNameParts[i];
+                if (string.IsNullOrEmpty(part))
+                    continue;
+
+                if (objectName.IndexOf(
+                        part,
+                        System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
             }
 
             current = current.parent;
