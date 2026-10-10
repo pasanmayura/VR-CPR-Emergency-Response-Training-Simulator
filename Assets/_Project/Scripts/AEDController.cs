@@ -2,8 +2,113 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.XR.Interaction.Toolkit;
 
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
+
 public class AEDController : MonoBehaviour
 {
+    [Header("Instruction audio")]
+    public AudioClip retrieveAEDInstructionClip;
+    public AudioClip carryAEDInstructionClip;
+    public AudioClip pad1InstructionClip;
+    public AudioClip pad2InstructionClip;
+    public AudioClip pad1AttachedInstructionClip;
+    public AudioClip pad2AttachedInstructionClip;
+    public AudioClip analysingInstructionClip;
+    public AudioClip shockAdvisedInstructionClip;
+    private bool analysisInstructionPlayed;
+    private bool shockInstructionPlayed;
+    private int narratedPlacementState = -1;
+    private bool carryInstructionPlayed;
+    private AudioSource instructionAudio;
+    private Rigidbody aedBody;
+    private XRGrabInteractable aedGrab;
+    private bool initialKinematic;
+    private bool initialGravity;
+    private bool waitingForFirstRelease;
+
+    private void Awake()
+    {
+        instructionAudio = gameObject.AddComponent<AudioSource>();
+        instructionAudio.playOnAwake = false;
+        instructionAudio.loop = false;
+        instructionAudio.spatialBlend = 0f;
+
+        aedBody = GetComponent<Rigidbody>();
+        aedGrab = GetComponent<XRGrabInteractable>();
+        if (aedGrab != null)
+        {
+            aedGrab.selectEntered.AddListener(OnAEDGrabbed);
+            aedGrab.selectExited.AddListener(OnAEDReleased);
+        }
+        if (aedBody != null && aedGrab != null)
+        {
+            initialKinematic = aedBody.isKinematic;
+            initialGravity = aedBody.useGravity;
+            aedBody.isKinematic = true;
+            aedBody.useGravity = false;
+            waitingForFirstRelease = true;
+            aedGrab.selectExited.AddListener(RestorePhysicsAfterFirstGrab);
+        }
+    }
+
+    private void OnAEDGrabbed(SelectEnterEventArgs args)
+    {
+        if (!isActiveAndEnabled || !stageStarted || PoweredOn || carryInstructionPlayed)
+            return;
+
+        carryInstructionPlayed = true;
+        ShowFeedback(
+            "7. BRING THE AED",
+            "Release Shift and then G.\n" +
+            "Now bring it beside the person. " +
+            "Then press Shift to put the AED down.");
+        instructionAudio.Stop();
+        if (carryAEDInstructionClip != null)
+        {
+            instructionAudio.clip = carryAEDInstructionClip;
+            instructionAudio.Play();
+        }
+    }
+
+    private void RestorePhysicsAfterFirstGrab(SelectExitEventArgs args)
+    {
+        if (!waitingForFirstRelease || aedBody == null)
+            return;
+
+        waitingForFirstRelease = false;
+        aedBody.isKinematic = initialKinematic;
+        aedBody.useGravity = initialGravity;
+    }
+
+    private void OnAEDReleased(SelectExitEventArgs args)
+    {
+        // A completed grab-and-release advances directly to attaching pads.
+        // Ignore canceled selections (for example, disabling the interactor).
+        if (args.isCanceled || !isActiveAndEnabled || !stageStarted ||
+            !carryInstructionPlayed || PoweredOn || aedGrab.isSelected)
+            return;
+
+        PowerOn();
+    }
+
+    private void OnDestroy()
+    {
+        if (aedGrab != null)
+        {
+            aedGrab.selectEntered.RemoveListener(OnAEDGrabbed);
+            aedGrab.selectExited.RemoveListener(OnAEDReleased);
+            aedGrab.selectExited.RemoveListener(RestorePhysicsAfterFirstGrab);
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (instructionAudio != null)
+            instructionAudio.Stop();
+    }
+
     [Header("Electrode pads")]
     public XRGrabInteractable pad1;
     public XRGrabInteractable pad2;
@@ -44,9 +149,9 @@ public class AEDController : MonoBehaviour
     private string displayedMessage;
 
     private const string PlacementInstructions =
-        "Place Pad 1 on the person's upper-right chest, " +
-        "below the collarbone. Place Pad 2 on their left side, " +
-        "just below the armpit.";
+        "Attach the electrode pads. Move a controller close to Pad 1 and " +
+        "press G + Shift to grab it. Place it on the person's upper-right chest, " +
+        "below the collarbone, in the highlighted area, then press Shift.";
 
     private bool PlacementReferencesValid()
     {
@@ -96,15 +201,25 @@ public class AEDController : MonoBehaviour
 
     public void BeginAEDStage()
     {
-        if (stageStarted)
+        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+            return;
+
+        if (stageStarted || !isActiveAndEnabled)
             return;
 
         stageStarted = true;
 
         ShowFeedback(
             "7. USE THE AED",
-            "Bring the AED beside the person. " +
-            "Press its green power button.");
+            "Use the AED on the other table. " +
+            "Move either controller close to it and press G + Shift to grab it.");
+
+        if (retrieveAEDInstructionClip != null)
+        {
+            instructionAudio.clip = retrieveAEDInstructionClip;
+            instructionAudio.Play();
+        }
 
         Debug.Log("AED stage started.", this);
     }
@@ -132,10 +247,17 @@ public class AEDController : MonoBehaviour
             return;
 
         PoweredOn = true;
+        instructionAudio.Stop();
 
         ShowFeedback(
             "7. AED POWERED ON",
             "AED switched on. " + PlacementInstructions);
+
+        if (pad1InstructionClip != null)
+        {
+            instructionAudio.clip = pad1InstructionClip;
+            instructionAudio.Play();
+        }
 
         Debug.Log("AED powered on — simulation.", this);
 
@@ -146,6 +268,22 @@ public class AEDController : MonoBehaviour
     {
         if (!PoweredOn || ShockDelivered)
             return;
+
+        bool shockPressed = false;
+#if ENABLE_INPUT_SYSTEM
+        if (Keyboard.current != null)
+            shockPressed = Keyboard.current.enterKey.wasPressedThisFrame ||
+                           Keyboard.current.numpadEnterKey.wasPressedThisFrame;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+        shockPressed = Input.GetKeyDown(KeyCode.Return) ||
+                       Input.GetKeyDown(KeyCode.KeypadEnter);
+#endif
+        if (shockPressed)
+        {
+            DeliverShock();
+            if (ShockDelivered)
+                return;
+        }
 
         if (!PlacementReferencesValid())
         {
@@ -161,6 +299,25 @@ public class AEDController : MonoBehaviour
 
         bool firstPlaced = CorrectPadInSocket(pad1Socket, pad1);
         bool secondPlaced = CorrectPadInSocket(pad2Socket, pad2);
+
+        int placementState = (firstPlaced ? 1 : 0) | (secondPlaced ? 2 : 0);
+        if (placementState != narratedPlacementState)
+        {
+            // Leave the initial Pad 1 instruction playing while neither is attached.
+            if (placementState != 0 || narratedPlacementState > 0)
+            {
+                instructionAudio.Stop();
+                AudioClip clip = placementState == 1
+                    ? pad1AttachedInstructionClip
+                    : placementState == 2 ? pad2AttachedInstructionClip : null;
+                if (clip != null)
+                {
+                    instructionAudio.clip = clip;
+                    instructionAudio.Play();
+                }
+            }
+            narratedPlacementState = placementState;
+        }
 
         BothPadsAttached = firstPlaced && secondPlaced;
 
@@ -182,16 +339,26 @@ public class AEDController : MonoBehaviour
 
         if (ShockAdvised)
         {
+            if (!handsClear)
+            {
+                instructionAudio.Stop();
+                shockInstructionPlayed = false;
+            }
+            else if (!shockInstructionPlayed)
+            {
+                PlayStageInstruction(shockAdvisedInstructionClip);
+                shockInstructionPlayed = true;
+            }
             ShowFeedback(
                 handsClear
                     ? "8. SHOCK ADVISED — SIMULATION"
                     : "8. STAND CLEAR — SHOCK BLOCKED",
                 handsClear
                     ? "Keep everyone clear. Do not touch the person. " +
-                      "Press the red shock button."
+                      "Press Enter to deliver the simulated shock."
                     : "Move both hands away from the person. " +
                       "Keep everyone clear before pressing " +
-                      "the red shock button.");
+                      "Enter to deliver the simulated shock.");
 
             return;
         }
@@ -219,6 +386,11 @@ public class AEDController : MonoBehaviour
             return;
         }
 
+        if (!analysisInstructionPlayed)
+        {
+            PlayStageInstruction(analysingInstructionClip);
+            analysisInstructionPlayed = true;
+        }
         analysisTimer += Time.deltaTime;
 
         if (analysisTimer < Mathf.Max(0.1f, analysisDuration))
@@ -232,11 +404,13 @@ public class AEDController : MonoBehaviour
 
         // Scripted training result, not a real rhythm measurement.
         ShockAdvised = true;
+        PlayStageInstruction(shockAdvisedInstructionClip);
+        shockInstructionPlayed = true;
 
         ShowFeedback(
             "8. SHOCK ADVISED — SIMULATION",
             "Keep everyone clear. Do not touch the person. " +
-            "Press the red shock button.");
+            "Press Enter to deliver the simulated shock.");
 
         Debug.Log(
             "Simulated AED analysis completed: shock advised.",
@@ -294,7 +468,7 @@ public class AEDController : MonoBehaviour
                 "8. STAND CLEAR — SHOCK BLOCKED",
                 "Move both hands away from the person. " +
                 "Keep everyone clear before pressing " +
-                "the red shock button.");
+                "Enter to deliver the simulated shock.");
 
             Debug.Log(
                 "Simulated shock blocked: a hand is near the mannequin.",
@@ -314,6 +488,7 @@ public class AEDController : MonoBehaviour
 
         // Set this before invoking the event to prevent repeat shocks.
         ShockDelivered = true;
+        instructionAudio.Stop();
         ShockAdvised = false;
 
         ShowFeedback(
@@ -327,9 +502,22 @@ public class AEDController : MonoBehaviour
 
     private void ResetAnalysis()
     {
+        if (instructionAudio.clip == analysingInstructionClip ||
+            instructionAudio.clip == shockAdvisedInstructionClip)
+            instructionAudio.Stop();
+        analysisInstructionPlayed = false;
+        shockInstructionPlayed = false;
         clearTimer = 0f;
         analysisTimer = 0f;
         ShockAdvised = false;
+    }
+
+    private void PlayStageInstruction(AudioClip clip)
+    {
+        instructionAudio.Stop();
+        instructionAudio.clip = clip;
+        if (clip != null)
+            instructionAudio.Play();
     }
 
     private bool HandsAreClear()
@@ -364,16 +552,16 @@ public class AEDController : MonoBehaviour
             ShowFeedback(
                 "7. ELECTRODE PADS — 1/2",
                 "Pad 1 is correctly attached. " +
-                "Place Pad 2 on the person's left side, " +
-                "just below the armpit.");
+                "Repeat with Pad 2, Place Pad 2 on the person's upper-right chest, " +
+                "highlighted area, below the collarbone.");
         }
         else if (secondPlaced)
         {
             ShowFeedback(
                 "7. ELECTRODE PADS — 1/2",
                 "Pad 2 is correctly attached. " +
-                "Place Pad 1 on the person's upper-right chest, " +
-                "below the collarbone.");
+                "Repeat with Pad 1, placing it on the person's left side " +
+                "highlighted area, just below the armpit.");
         }
         else
         {

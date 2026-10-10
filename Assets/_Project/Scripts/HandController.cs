@@ -266,10 +266,6 @@ public class HandController : MonoBehaviour
         if (!clicked)
             return;
 
-        // Let the emergency call button handle its own clicks.
-        if (CPRInteraction.PointerOverCallButton(pointerPosition))
-            return;
-
         Vector2 guiPosition = new Vector2(
             pointerPosition.x,
             Screen.height - pointerPosition.y

@@ -10,6 +10,10 @@ public class EmergencyAssistance : MonoBehaviour
 
     public float contactTolerance = 0.015f;
 
+    [Header("Call audio")]
+    public AudioClip assistanceInstructionClip;
+    public AudioClip callingClip;
+
     [Header("Feedback")]
     [Min(0f)]
     public float resultDisplayDuration = 3f;
@@ -18,15 +22,18 @@ public class EmergencyAssistance : MonoBehaviour
     public UnityEvent onAssistanceRequested = new UnityEvent();
 
     private bool available;
-    private bool callScreenOpen;
     private bool completed;
     private bool feedbackFinished;
 
     private float finishTime;
+    private AudioSource callAudio;
 
     private void Awake()
     {
-        CPRInteraction.CallButtonVisible = false;
+        callAudio = gameObject.AddComponent<AudioSource>();
+        callAudio.playOnAwake = false;
+        callAudio.loop = false;
+        callAudio.spatialBlend = 0f;
     }
 
     private void Start()
@@ -78,8 +85,19 @@ public class EmergencyAssistance : MonoBehaviour
 
     public void BeginAssistanceStep()
     {
-        if (!completed)
-            available = true;
+        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+            return;
+
+        if (!isActiveAndEnabled || completed || available)
+            return;
+
+        available = true;
+        if (assistanceInstructionClip != null)
+        {
+            callAudio.clip = assistanceInstructionClip;
+            callAudio.Play();
+        }
     }
 
     private void Update()
@@ -100,9 +118,6 @@ public class EmergencyAssistance : MonoBehaviour
             return;
         }
 
-        if (callScreenOpen)
-            return;
-
         bool touching =
             CPRInteraction.Touching(
                 leftPalmContact,
@@ -115,8 +130,16 @@ public class EmergencyAssistance : MonoBehaviour
 
         if (touching)
         {
-            callScreenOpen = true;
-            CPRInteraction.CallButtonVisible = true;
+            completed = true;
+            callAudio.Stop();
+            if (callingClip != null)
+            {
+                callAudio.clip = callingClip;
+                callAudio.Play();
+            }
+            finishTime = Time.time + Mathf.Max(
+                resultDisplayDuration, callingClip != null ? callingClip.length : 0f);
+            Debug.Log("Simulated call: dialled 1990. Assistance is on the way.", this);
         }
     }
 
@@ -137,31 +160,14 @@ public class EmergencyAssistance : MonoBehaviour
 
         CPRInteraction.ShowInstruction(
             "2. REQUEST ASSISTANCE",
-            callScreenOpen
-                ? "Phone reached. Click the green call button " +
-                  "to dial 1990 and request emergency assistance."
-                : "Call for emergency assistance. Press 1 or 2 " +
-                  "to select a hand, then hold Shift and click " +
-                  "the phone to tap it.");
-
-        if (callScreenOpen && CPRInteraction.ShowCallButton())
-        {
-            completed = true;
-            callScreenOpen = false;
-            CPRInteraction.CallButtonVisible = false;
-
-            finishTime =
-                Time.time + Mathf.Max(0f, resultDisplayDuration);
-
-            Debug.Log(
-                "Simulated call: dialled 1990. " +
-                "Assistance is on the way.",
-                this);
-        }
+            "Call for emergency help. " +
+            "Move either controller to the phone and " +
+            "left click to make the emergency call.");
     }
 
     private void OnDisable()
     {
-        CPRInteraction.CallButtonVisible = false;
+        if (callAudio != null)
+            callAudio.Stop();
     }
 }

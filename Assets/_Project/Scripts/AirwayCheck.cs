@@ -11,11 +11,25 @@ public class AirwayCheck : MonoBehaviour
     public Transform rightPalmContact;
 
     public float contactTolerance = 0.015f;
-    public float placementHoldDuration = 1f;
+    [Min(0.1f)]
+    public float placementHoldDuration = 5f;
+
+    [Header("Instruction audio")]
+    public AudioClip foreheadInstructionClip;
+    public AudioClip chinInstructionClip;
+    public AudioClip keepForeheadInstructionClip;
+    public AudioClip airwayCompletedClip;
+    [Min(1f)]
+    public float instructionRepeatDelay = 5f;
+
+    [Header("Hold timer audio")]
+    public AudioClip holdTimerClip;
+    [Range(0f, 1f)]
+    public float holdTimerVolume = 0.5f;
 
     [Header("Feedback")]
     [Min(0f)]
-    public float resultDisplayDuration = 2f;
+    public float resultDisplayDuration = 6f;
 
     [Header("Completion event")]
     public UnityEvent onAirwayCompleted = new UnityEvent();
@@ -23,11 +37,36 @@ public class AirwayCheck : MonoBehaviour
     private bool started;
     private bool completed;
     private bool foreheadEstablished;
+    private bool foreheadReminderActive;
     private bool feedbackFinished;
 
     private float holdTimer;
     private float finishTime;
+    private float nextInstructionTime;
     private string message;
+    private AudioSource instructionAudio;
+    private AudioSource holdTimerAudio;
+    private const string ForeheadInstruction =
+        "Move the left controller to the person's forehead and keep it there.";
+    private const string ChinInstruction =
+        "Then move the right controller beneath the chin to complete the simulated airway-opening position.";
+    private const string KeepForeheadInstruction =
+        "Keep the left hand on the forehead. Don't move it.";
+
+    private void Awake()
+    {
+        instructionAudio = gameObject.AddComponent<AudioSource>();
+        instructionAudio.playOnAwake = false;
+        instructionAudio.loop = false;
+        instructionAudio.spatialBlend = 0f;
+
+        holdTimerAudio = gameObject.AddComponent<AudioSource>();
+        holdTimerAudio.playOnAwake = false;
+        holdTimerAudio.loop = true;
+        holdTimerAudio.spatialBlend = 0f;
+        holdTimerAudio.clip = holdTimerClip;
+        holdTimerAudio.volume = holdTimerVolume;
+    }
 
     private void Start()
     {
@@ -47,14 +86,17 @@ public class AirwayCheck : MonoBehaviour
 
     public void BeginAirwayStep()
     {
-        if (started || !enabled)
+        GameFlowManager gameFlowManager = FindObjectOfType<GameFlowManager>();
+        if (gameFlowManager == null || !gameFlowManager.TrainingStarted)
+            return;
+
+        if (started || !isActiveAndEnabled)
             return;
 
         started = true;
 
-        message =
-            "Press 1 to select the LEFT hand. Hold Shift and " +
-            "click the forehead. Keep the left hand there.";
+        message = ForeheadInstruction;
+        PlayInstruction(foreheadInstructionClip);
     }
 
     private void Update()
@@ -65,7 +107,8 @@ public class AirwayCheck : MonoBehaviour
         // Show the result before starting the breathing step.
         if (completed)
         {
-            if (!feedbackFinished && Time.time >= finishTime)
+            if (!feedbackFinished && Time.time >= finishTime &&
+                !instructionAudio.isPlaying)
             {
                 feedbackFinished = true;
                 onAirwayCompleted.Invoke();
@@ -86,12 +129,24 @@ public class AirwayCheck : MonoBehaviour
 
         if (!leftOnForehead)
         {
+            holdTimerAudio.Stop();
+            // Play only on loss of established contact, not every frame away.
+            if (foreheadEstablished)
+            {
+                foreheadReminderActive = !rightOnChin;
+                PlayInstruction(foreheadReminderActive
+                    ? keepForeheadInstructionClip
+                    : foreheadInstructionClip);
+            }
             foreheadEstablished = false;
             holdTimer = 0f;
 
-            message =
-                "Press 1 to select the LEFT hand. Hold Shift " +
-                "and click the forehead. Keep that hand there.";
+            message = foreheadReminderActive
+                ? KeepForeheadInstruction
+                : ForeheadInstruction;
+            RepeatInstruction(foreheadReminderActive
+                ? keepForeheadInstructionClip
+                : foreheadInstructionClip);
 
             return;
         }
@@ -99,26 +154,31 @@ public class AirwayCheck : MonoBehaviour
         if (!foreheadEstablished)
         {
             foreheadEstablished = true;
+            foreheadReminderActive = false;
+            PlayInstruction(rightOnChin ? null : chinInstructionClip);
             holdTimer = 0f;
 
-            message =
-                "Left hand in position. Press 2 to select the " +
-                "RIGHT hand, then hold Shift and click beneath the chin.";
+            message = ChinInstruction;
 
             return;
         }
 
         if (!rightOnChin)
         {
+            holdTimerAudio.Stop();
+            if (holdTimer > 0f)
+                PlayInstruction(chinInstructionClip);
             holdTimer = 0f;
 
-            message =
-                "Keep the left hand on the forehead. Press 2, " +
-                "then hold Shift and click beneath the chin.";
+            message = ChinInstruction;
+            RepeatInstruction(chinInstructionClip);
 
             return;
         }
 
+        instructionAudio.Stop();
+        if (holdTimerClip != null && !holdTimerAudio.isPlaying)
+            holdTimerAudio.Play();
         holdTimer += Time.deltaTime;
 
         float requiredDuration =
@@ -134,10 +194,13 @@ public class AirwayCheck : MonoBehaviour
         if (holdTimer >= requiredDuration)
         {
             completed = true;
+            holdTimerAudio.Stop();
 
             message =
                 "Head tilted and chin lifted to open the airway.\n" +
                 "Simulated action completed. Next: check breathing.";
+
+            PlayInstruction(airwayCompletedClip);
 
             finishTime =
                 Time.time + Mathf.Max(0f, resultDisplayDuration);
@@ -146,6 +209,31 @@ public class AirwayCheck : MonoBehaviour
                 "Simulated head tilt and chin lift completed.",
                 this);
         }
+    }
+
+    private void PlayInstruction(AudioClip clip)
+    {
+        instructionAudio.Stop();
+        instructionAudio.clip = clip;
+        if (clip != null)
+            instructionAudio.Play();
+        nextInstructionTime = Time.time +
+            (clip != null ? clip.length : 0f) + Mathf.Max(1f, instructionRepeatDelay);
+    }
+
+    private void RepeatInstruction(AudioClip clip)
+    {
+        if (!instructionAudio.isPlaying && Time.time >= nextInstructionTime)
+            PlayInstruction(clip);
+    }
+
+    private void OnDisable()
+    {
+        if (holdTimerAudio != null)
+            holdTimerAudio.Stop();
+        holdTimer = 0f;
+        if (instructionAudio != null)
+            instructionAudio.Stop();
     }
 
     private void OnGUI()

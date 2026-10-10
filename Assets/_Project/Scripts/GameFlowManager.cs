@@ -2,12 +2,15 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Unity.XR.CoreUtils;
+using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
 
+[DefaultExecutionOrder(10000)]
 [RequireComponent(typeof(AudioSource))]
 public class GameFlowManager : MonoBehaviour
 {
@@ -26,6 +29,8 @@ public class GameFlowManager : MonoBehaviour
     }
 
     public TrainingStage CurrentStage { get; private set; } = TrainingStage.Start;
+    public bool TrainingStarted { get; private set; }
+    public bool GuideIntroductionFinished => TrainingStarted && playerMovementEnabled;
 
     [Header("Start button")]
     [Min(0.5f)]
@@ -68,6 +73,15 @@ public class GameFlowManager : MonoBehaviour
     private bool guiderWasInstantiated;
     private AudioSource audioSource;
     private AudioClip guiderArrivalClip;
+    private LocomotionSystem locomotionSystem;
+    private LocomotionProvider[] locomotionProviders;
+    private bool[] locomotionProviderStates;
+    private XROrigin xrOrigin;
+    private Transform playerCameraTransform;
+    private Vector3 lockedCameraOffsetLocalPosition;
+    private Vector3 lockedCameraLocalPosition;
+    private Vector3 lockedOriginPosition;
+    private bool playerMovementEnabled;
 
     private void Start()
     {
@@ -78,6 +92,35 @@ public class GameFlowManager : MonoBehaviour
         audioSource.playOnAwake = false;
         audioSource.loop = false;
         audioSource.spatialBlend = 0f;
+        xrOrigin = FindObjectOfType<XROrigin>();
+        if (xrOrigin != null)
+            lockedOriginPosition = xrOrigin.transform.position;
+
+        playerCameraTransform = Camera.main != null
+            ? Camera.main.transform
+            : null;
+        cameraOffset = ResolveCameraOffset(playerCameraTransform);
+        if (cameraOffset != null)
+            lockedCameraOffsetLocalPosition = cameraOffset.localPosition;
+        if (playerCameraTransform != null)
+            lockedCameraLocalPosition = playerCameraTransform.localPosition;
+
+        locomotionSystem = FindObjectOfType<LocomotionSystem>();
+        locomotionProviders = FindObjectsOfType<LocomotionProvider>(true);
+        locomotionProviderStates = new bool[locomotionProviders.Length];
+        for (int i = 0; i < locomotionProviders.Length; i++)
+            locomotionProviderStates[i] = locomotionProviders[i].enabled;
+
+        SetPlayerMovementEnabled(false);
+
+        if (locomotionSystem == null)
+        {
+            Debug.LogError(
+                "GameFlowManager: could not find the XR Locomotion System. " +
+                "Player movement cannot be locked during the guide audio.",
+                this);
+        }
+
         guiderArrivalClip =
             Resources.Load<AudioClip>("guider/ControlGuider");
 
@@ -96,6 +139,8 @@ public class GameFlowManager : MonoBehaviour
     {
         if (CurrentStage != TrainingStage.Start)
             return;
+
+        SetPlayerMovementEnabled(false);
 
         bool startPressed = false;
 
@@ -128,7 +173,9 @@ public class GameFlowManager : MonoBehaviour
         if (CurrentStage != TrainingStage.Start)
             return;
 
+        TrainingStarted = true;
         SetStage(TrainingStage.Tutorial);
+        SetPlayerMovementEnabled(false);
 
         if (startCanvas != null)
             startCanvas.gameObject.SetActive(false);
@@ -342,10 +389,14 @@ public class GameFlowManager : MonoBehaviour
         Transform guiderTransform)
     {
         if (guiderArrivalClip == null)
+        {
+            SetPlayerMovementEnabled(true);
             yield break;
+        }
 
         audioSource.PlayOneShot(guiderArrivalClip, guiderArrivalVolume);
-        yield return new WaitForSeconds(guiderArrivalClip.length);
+        yield return new WaitUntil(() => !audioSource.isPlaying);
+        SetPlayerMovementEnabled(true);
 
         Quaternion startRotation = guiderTransform.rotation;
         Quaternion targetRotation = Quaternion.Euler(-90f, 90f, 0f);
@@ -385,6 +436,53 @@ public class GameFlowManager : MonoBehaviour
         }
 
         guiderTransform.position = walkTarget;
+    }
+
+    private void SetPlayerMovementEnabled(bool enabled)
+    {
+        playerMovementEnabled = enabled;
+
+        if (locomotionSystem != null)
+            locomotionSystem.enabled = enabled;
+
+        if (locomotionProviders == null)
+            return;
+
+        for (int i = 0; i < locomotionProviders.Length; i++)
+        {
+            if (locomotionProviders[i] == null)
+                continue;
+
+            locomotionProviders[i].enabled =
+                enabled ? locomotionProviderStates[i] : false;
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (playerMovementEnabled || xrOrigin == null)
+            return;
+
+        Vector3 currentPosition = xrOrigin.transform.position;
+        currentPosition.x = lockedOriginPosition.x;
+        currentPosition.z = lockedOriginPosition.z;
+        xrOrigin.transform.position = currentPosition;
+
+        if (cameraOffset != null)
+        {
+            Vector3 cameraOffsetPosition = cameraOffset.localPosition;
+            cameraOffsetPosition.x = lockedCameraOffsetLocalPosition.x;
+            cameraOffsetPosition.z = lockedCameraOffsetLocalPosition.z;
+            cameraOffset.localPosition = cameraOffsetPosition;
+        }
+
+        if (playerCameraTransform != null)
+        {
+            Vector3 cameraPosition = playerCameraTransform.localPosition;
+            cameraPosition.x = lockedCameraLocalPosition.x;
+            cameraPosition.z = lockedCameraLocalPosition.z;
+            playerCameraTransform.localPosition = cameraPosition;
+        }
     }
 
     private void EnsureXRUIInputModule()
