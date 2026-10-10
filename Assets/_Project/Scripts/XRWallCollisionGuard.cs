@@ -5,7 +5,7 @@ using UnityEngine.XR.Interaction.Toolkit;
 
 /// <summary>
 /// Prevents tracked head and controller movement from clipping through solid
-/// room colliders (walls, furniture, mannequin, props).
+/// room colliders (walls, furniture, cupboard/shelf, mannequin, props).
 ///
 /// Normal locomotion already uses the XR Origin CharacterController, but an
 /// XR Device Simulator (and real room-scale tracking) updates the camera and
@@ -25,16 +25,17 @@ public class XRWallCollisionGuard : MonoBehaviour
     public float headRadius = 0.18f;
 
     [Min(0.02f)]
-    public float controllerRadius = 0.06f;
+    public float controllerRadius = 0.08f;
 
     [Min(0f)]
-    public float clearance = 0.02f;
+    public float clearance = 0.03f;
 
     [Tooltip("Walkable surfaces whose names contain these words are ignored so the player is not blocked by the floor.")]
     public string[] walkableNameParts = { "Floor", "Ground", "Outside" };
 
-    private Vector3 previousHeadPosition;
     private readonly List<TrackedPart> trackedParts = new List<TrackedPart>();
+    private SphereCollider probeCollider;
+    private Transform probeTransform;
     private bool initialized;
 
     private sealed class TrackedPart
@@ -74,7 +75,10 @@ public class XRWallCollisionGuard : MonoBehaviour
                 this);
 
             enabled = false;
+            return;
         }
+
+        CreateProbeCollider();
     }
 
     private void Start()
@@ -106,7 +110,6 @@ public class XRWallCollisionGuard : MonoBehaviour
             });
         }
 
-        previousHeadPosition = headCamera.transform.position;
         initialized = true;
     }
 
@@ -117,8 +120,23 @@ public class XRWallCollisionGuard : MonoBehaviour
 
         for (int i = 0; i < trackedParts.Count; i++)
             ResolveTrackedPart(trackedParts[i]);
+    }
 
-        previousHeadPosition = headCamera.transform.position;
+    private void CreateProbeCollider()
+    {
+        GameObject probe = new GameObject("CollisionProbe");
+        probe.hideFlags = HideFlags.HideAndDontSave;
+        probeTransform = probe.transform;
+        probeTransform.SetParent(transform, false);
+
+        probeCollider = probe.AddComponent<SphereCollider>();
+        probeCollider.isTrigger = true;
+        probeCollider.radius = 1f;
+
+        Rigidbody rigidbody = probe.AddComponent<Rigidbody>();
+        rigidbody.isKinematic = true;
+        rigidbody.useGravity = false;
+        rigidbody.detectCollisions = false;
     }
 
     private void ResolveTrackedPart(TrackedPart part)
@@ -129,81 +147,71 @@ public class XRWallCollisionGuard : MonoBehaviour
         Vector3 currentPosition = part.transform.position;
         Vector3 movement = currentPosition - part.previousPosition;
 
-        // Controllers need full 3D blocking so they cannot pass through tabletops.
+        // Controllers need full 3D blocking so they cannot pass through shelves.
         // The head still uses horizontal-only correction so looking up/down stays free.
         Vector3 castMovement = part.correctsOrigin
             ? Vector3.ProjectOnPlane(movement, Vector3.up)
             : movement;
 
         float distance = castMovement.magnitude;
-        if (distance <= 0.0001f)
+        Vector3 allowedPosition = currentPosition;
+        bool corrected = false;
+
+        if (distance > 0.0001f)
         {
-            // Still push out if the part is already overlapping solids.
-            if (TryResolveOverlap(part, currentPosition, out Vector3 pushedOut))
+            Vector3 direction = castMovement / distance;
+            RaycastHit[] hits = Physics.SphereCastAll(
+                part.previousPosition,
+                Mathf.Max(0.02f, part.radius),
+                direction,
+                distance + Mathf.Max(0f, clearance),
+                Physics.DefaultRaycastLayers,
+                QueryTriggerInteraction.Ignore);
+
+            RaycastHit nearestHit = default(RaycastHit);
+            bool foundBlocker = false;
+            float nearestDistance = float.PositiveInfinity;
+
+            foreach (RaycastHit hit in hits)
             {
-                ApplyPartCorrection(part, currentPosition, pushedOut);
-                part.previousPosition = part.transform.position;
-            }
-            else
-            {
-                part.previousPosition = currentPosition;
+                if (!IsBlockingCollider(hit.collider))
+                    continue;
+
+                if (hit.distance < nearestDistance)
+                {
+                    nearestDistance = hit.distance;
+                    nearestHit = hit;
+                    foundBlocker = true;
+                }
             }
 
-            return;
+            if (foundBlocker)
+            {
+                float allowedDistance = Mathf.Max(
+                    0f,
+                    nearestHit.distance - Mathf.Max(0f, clearance));
+
+                allowedPosition =
+                    part.previousPosition + direction * allowedDistance;
+
+                if (part.correctsOrigin)
+                    allowedPosition.y = currentPosition.y;
+
+                corrected = true;
+            }
         }
 
-        Vector3 direction = castMovement / distance;
-        RaycastHit[] hits = Physics.SphereCastAll(
-            part.previousPosition,
-            Mathf.Max(0.02f, part.radius),
-            direction,
-            distance + Mathf.Max(0f, clearance),
-            Physics.DefaultRaycastLayers,
-            QueryTriggerInteraction.Ignore);
-
-        RaycastHit nearestHit = default(RaycastHit);
-        bool foundBlocker = false;
-        float nearestDistance = float.PositiveInfinity;
-
-        foreach (RaycastHit hit in hits)
+        // Always push out if already inside a solid (common with cupboard/shelf boxes).
+        Vector3 candidate = corrected ? allowedPosition : currentPosition;
+        if (TryResolveOverlap(part, candidate, out Vector3 pushedOut))
         {
-            if (!IsBlockingCollider(hit.collider))
-                continue;
-
-            if (hit.distance < nearestDistance)
-            {
-                nearestDistance = hit.distance;
-                nearestHit = hit;
-                foundBlocker = true;
-            }
+            allowedPosition = pushedOut;
+            corrected = true;
         }
 
-        if (!foundBlocker)
-        {
-            if (TryResolveOverlap(part, currentPosition, out Vector3 pushedOut))
-            {
-                ApplyPartCorrection(part, currentPosition, pushedOut);
-                part.previousPosition = part.transform.position;
-            }
-            else
-            {
-                part.previousPosition = currentPosition;
-            }
+        if (corrected)
+            ApplyPartCorrection(part, currentPosition, allowedPosition);
 
-            return;
-        }
-
-        float allowedDistance = Mathf.Max(
-            0f,
-            nearestHit.distance - Mathf.Max(0f, clearance));
-
-        Vector3 allowedPosition =
-            part.previousPosition + direction * allowedDistance;
-
-        if (part.correctsOrigin)
-            allowedPosition.y = currentPosition.y;
-
-        ApplyPartCorrection(part, currentPosition, allowedPosition);
         part.previousPosition = part.transform.position;
     }
 
@@ -217,10 +225,11 @@ public class XRWallCollisionGuard : MonoBehaviour
         if (part.correctsOrigin)
         {
             correction.y = 0f;
+            if (correction.sqrMagnitude < 0.0000001f)
+                return;
+
             xrOrigin.transform.position += correction;
 
-            // Controllers move with the origin, so keep their previous points
-            // consistent after an origin correction.
             for (int i = 0; i < trackedParts.Count; i++)
             {
                 TrackedPart other = trackedParts[i];
@@ -243,13 +252,20 @@ public class XRWallCollisionGuard : MonoBehaviour
     {
         resolvedPosition = currentPosition;
 
+        if (probeCollider == null || probeTransform == null)
+            return false;
+
+        float radius = Mathf.Max(0.02f, part.radius);
+        probeTransform.position = currentPosition;
+        probeCollider.radius = radius;
+
         Collider[] overlaps = Physics.OverlapSphere(
             currentPosition,
-            Mathf.Max(0.02f, part.radius),
+            radius + Mathf.Max(0f, clearance),
             Physics.DefaultRaycastLayers,
             QueryTriggerInteraction.Ignore);
 
-        Vector3 push = Vector3.zero;
+        Vector3 totalPush = Vector3.zero;
         bool foundOverlap = false;
 
         foreach (Collider overlap in overlaps)
@@ -257,41 +273,158 @@ public class XRWallCollisionGuard : MonoBehaviour
             if (!IsBlockingCollider(overlap))
                 continue;
 
-            Vector3 closest = overlap.ClosestPoint(currentPosition);
-            Vector3 away = currentPosition - closest;
+            Vector3 direction;
+            float separation;
 
-            if (away.sqrMagnitude < 0.000001f)
-                away = (currentPosition - overlap.bounds.center).normalized;
-            else
-                away.Normalize();
+            bool computed = Physics.ComputePenetration(
+                probeCollider,
+                currentPosition,
+                Quaternion.identity,
+                overlap,
+                overlap.transform.position,
+                overlap.transform.rotation,
+                out direction,
+                out separation);
 
-            float penetration =
-                Mathf.Max(0.02f, part.radius) + Mathf.Max(0f, clearance) -
-                Vector3.Distance(currentPosition, closest);
-
-            if (penetration <= 0f)
-                continue;
+            if (!computed || separation <= 0f)
+            {
+                // Fallback for rare collider types that fail ComputePenetration.
+                if (!TryPushOutOfBounds(
+                        overlap.bounds,
+                        currentPosition,
+                        radius,
+                        part.correctsOrigin,
+                        out direction,
+                        out separation))
+                {
+                    continue;
+                }
+            }
 
             if (part.correctsOrigin)
-                away = Vector3.ProjectOnPlane(away, Vector3.up).normalized;
+            {
+                direction = Vector3.ProjectOnPlane(direction, Vector3.up);
+                if (direction.sqrMagnitude < 0.000001f)
+                    continue;
 
-            if (away.sqrMagnitude < 0.000001f)
-                continue;
+                direction.Normalize();
+            }
 
-            push += away * penetration;
+            totalPush += direction * (separation + Mathf.Max(0f, clearance));
             foundOverlap = true;
         }
 
         if (!foundOverlap)
             return false;
 
-        resolvedPosition = currentPosition + push;
+        // Iterate once more from the pushed position for deep cupboard interiors.
+        Vector3 afterPush = currentPosition + totalPush;
+        probeTransform.position = afterPush;
+        probeCollider.radius = radius;
+
+        Collider[] secondPass = Physics.OverlapSphere(
+            afterPush,
+            radius + Mathf.Max(0f, clearance),
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Ignore);
+
+        foreach (Collider overlap in secondPass)
+        {
+            if (!IsBlockingCollider(overlap))
+                continue;
+
+            Vector3 direction;
+            float separation;
+
+            if (!Physics.ComputePenetration(
+                    probeCollider,
+                    afterPush,
+                    Quaternion.identity,
+                    overlap,
+                    overlap.transform.position,
+                    overlap.transform.rotation,
+                    out direction,
+                    out separation))
+            {
+                continue;
+            }
+
+            if (separation <= 0f)
+                continue;
+
+            if (part.correctsOrigin)
+            {
+                direction = Vector3.ProjectOnPlane(direction, Vector3.up);
+                if (direction.sqrMagnitude < 0.000001f)
+                    continue;
+
+                direction.Normalize();
+            }
+
+            afterPush += direction * (separation + Mathf.Max(0f, clearance));
+        }
+
+        resolvedPosition = afterPush;
         return true;
+    }
+
+    private static bool TryPushOutOfBounds(
+        Bounds bounds,
+        Vector3 point,
+        float radius,
+        bool horizontalOnly,
+        out Vector3 direction,
+        out float separation)
+    {
+        direction = Vector3.zero;
+        separation = 0f;
+
+        if (!bounds.Contains(point) &&
+            (bounds.ClosestPoint(point) - point).sqrMagnitude >
+            radius * radius)
+        {
+            return false;
+        }
+
+        Vector3 center = bounds.center;
+        Vector3 extents = bounds.extents + Vector3.one * radius;
+
+        float dx = point.x - center.x;
+        float dy = point.y - center.y;
+        float dz = point.z - center.z;
+
+        float px = extents.x - Mathf.Abs(dx);
+        float py = extents.y - Mathf.Abs(dy);
+        float pz = extents.z - Mathf.Abs(dz);
+
+        if (horizontalOnly)
+            py = float.PositiveInfinity;
+
+        if (px <= py && px <= pz)
+        {
+            direction = dx >= 0f ? Vector3.right : Vector3.left;
+            separation = px;
+        }
+        else if (py <= px && py <= pz)
+        {
+            direction = dy >= 0f ? Vector3.up : Vector3.down;
+            separation = py;
+        }
+        else
+        {
+            direction = dz >= 0f ? Vector3.forward : Vector3.back;
+            separation = pz;
+        }
+
+        return separation > 0f;
     }
 
     private bool IsBlockingCollider(Collider collider)
     {
         if (collider == null || collider.isTrigger)
+            return false;
+
+        if (collider == probeCollider)
             return false;
 
         if (collider.transform.IsChildOf(xrOrigin.transform))
@@ -332,5 +465,11 @@ public class XRWallCollisionGuard : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void OnDestroy()
+    {
+        if (probeTransform != null)
+            Destroy(probeTransform.gameObject);
     }
 }
