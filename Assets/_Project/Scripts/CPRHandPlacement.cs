@@ -18,6 +18,7 @@ public class CPRHandPlacement : MonoBehaviour
     [Header("Instruction audio")]
     public AudioClip leftHandInstructionClip;
     public AudioClip rightHandInstructionClip;
+    public AudioClip handsPositionedClip;
 
     public UnityEvent onHandsPositioned = new UnityEvent();
 
@@ -154,6 +155,11 @@ public class CPRHandPlacement : MonoBehaviour
         if (holdTimer >= Mathf.Max(0.1f, placementHoldDuration))
         {
             Completed = true;
+            if (handsPositionedClip != null)
+            {
+                instructionAudio.clip = handsPositionedClip;
+                instructionAudio.Play();
+            }
 
             Debug.Log(
                 "CPR hand placement completed. " +

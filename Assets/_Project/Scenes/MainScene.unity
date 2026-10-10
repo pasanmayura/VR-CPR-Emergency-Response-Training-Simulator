@@ -722,6 +722,7 @@ MonoBehaviour:
   chinInstructionClip: {fileID: 8300000, guid: 3a4e51439fe34afcaae1a75d74fb2d0b, type: 3}
   keepForeheadInstructionClip: {fileID: 8300000, guid: 28cc1fd184854bbbbb82bf8a99517a02, type: 3}
   airwayCompletedClip: {fileID: 8300000, guid: f32561bce4b84e3595534e50e5943c04, type: 3}
+  instructionRepeatDelay: 5
   holdTimerClip: {fileID: 8300000, guid: 1d9cf7fee6444d14ac5eade48bf72f3e, type: 3}
   holdTimerVolume: 0.5
   resultDisplayDuration: 6
@@ -783,14 +784,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6d2dea3c19a0b014fac160385ca5d509, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  leftHandInstructionClip: {fileID: 8300000, guid: 5951f3d66f05493cb9ed854836d54225, type: 3}
-  rightHandInstructionClip: {fileID: 8300000, guid: 1ddb565bc2794b4a984f26f23ced6841, type: 3}
   chestZone: {fileID: 1952994840}
   upperHandZone: {fileID: 754353641}
   leftPalmContact: {fileID: 771728535}
   rightPalmContact: {fileID: 390507946}
   contactTolerance: 0.015
   placementHoldDuration: 1
+  leftHandInstructionClip: {fileID: 8300000, guid: 5951f3d66f05493cb9ed854836d54225, type: 3}
+  rightHandInstructionClip: {fileID: 8300000, guid: 1ddb565bc2794b4a984f26f23ced6841, type: 3}
+  handsPositionedClip: {fileID: 8300000, guid: f04f7de5a9a74c468fb149a382943569, type: 3}
   onHandsPositioned:
     m_PersistentCalls:
       m_Calls:
@@ -5097,7 +5099,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: -90, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: -1.137, y: 0.861}
+  m_AnchoredPosition: {x: -1.137, y: 0.645}
   m_SizeDelta: {x: 2, y: 1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1973412115

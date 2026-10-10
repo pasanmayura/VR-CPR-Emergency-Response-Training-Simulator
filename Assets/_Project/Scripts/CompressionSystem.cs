@@ -143,8 +143,9 @@ public class CompressionSystem : MonoBehaviour
         records.Clear();
 
         message =
-            "Keep both hands positioned. Press and release SPACE " +
-            "once per compression. Aim for 100–120/min.";
+            "Good job. Both hands placed correctly.\n" +
+            "Begin chest compressions. Press the spacebar once for each beat, " +
+            "keeping a steady rhythm.";
     }
 
     private void Update()
